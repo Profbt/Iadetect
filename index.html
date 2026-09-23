@@ -184,27 +184,45 @@
       Reescrever é a única forma de remover watermarks estatísticas (SynthID-Text, etc).
     </p>
 
-    <div class="rewrite-config">
-      <div class="field">
-        <label for="providerSelect">Provedor</label>
-        <select id="providerSelect">
-          <option value="puter">Puter.js — grátis, sem API key</option>
-          <option value="gemini">Google Gemini — sua API key</option>
-          <option value="groq">Groq — sua API key</option>
-        </select>
-      </div>
-      <div class="field" id="apiKeyField" style="display:none">
-        <label for="apiKeyInput">API Key</label>
-        <input type="password" id="apiKeyInput" placeholder="Fica só no seu navegador">
-      </div>
+    <div class="field rewrite-method">
+      <label for="rewriteMethod">Método</label>
+      <select id="rewriteMethod">
+        <option value="clever">Clever Humanizer — grátis, sem API key</option>
+        <option value="api">API — Puter / Gemini / Groq</option>
+      </select>
     </div>
 
-    <div class="actions">
-      <button class="primary" id="btnRewrite">✨ Reescrever texto</button>
-      <button id="btnRewriteToInput">↩️ Usar reescrita como entrada</button>
+    <div id="cleverWidget" class="clever-widget" style="display:none">
+      <div data-clever-widget="b979b26728954c9986b7531b338bc4c7" data-theme="dark"></div>
+    </div>
+    <div class="clever-note" id="cleverNote" style="display:none">
+      O widget não está conectado ao editor: <strong>copie o resultado dentro dele</strong> e cole no campo Entrada.
+      O texto vai para os servidores do Clever (não é processamento local).
     </div>
 
-    <div class="rewrite-status" id="rewriteStatus"></div>
+    <div id="apiRewriteArea" style="display:none">
+      <div class="rewrite-config">
+        <div class="field">
+          <label for="providerSelect">Provedor</label>
+          <select id="providerSelect">
+            <option value="puter">Puter.js — grátis, sem API key</option>
+            <option value="gemini">Google Gemini — sua API key</option>
+            <option value="groq">Groq — sua API key</option>
+          </select>
+        </div>
+        <div class="field" id="apiKeyField" style="display:none">
+          <label for="apiKeyInput">API Key</label>
+          <input type="password" id="apiKeyInput" placeholder="Fica só no seu navegador">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="btnRewrite">✨ Reescrever texto</button>
+        <button id="btnRewriteToInput">↩️ Usar reescrita como entrada</button>
+      </div>
+
+      <div class="rewrite-status" id="rewriteStatus"></div>
+    </div>
   </div>
 
   <section class="info">

@@ -806,6 +806,31 @@ const savedKey = localStorage.getItem('cleanmark_api_key');
 if (savedKey) $('apiKeyInput').value = savedKey;
 $('apiKeyInput').addEventListener('input', e => localStorage.setItem('cleanmark_api_key', e.target.value));
 
+// ============================================================
+// 15b. MÉTODO DE REESCRITA (widget Clever × API)
+// ============================================================
+let cleverWidgetScriptLoaded = false;
+
+function ensureCleverWidget(){
+  if (cleverWidgetScriptLoaded) return;
+  cleverWidgetScriptLoaded = true;
+  const s = document.createElement('script');
+  s.src = 'https://widgets.cleverhumanizer.ai/widget.js';
+  s.async = true;
+  document.body.appendChild(s);
+}
+
+function setRewriteMethod(method){
+  const apiMode = method === 'api';
+  $('cleverWidget').style.display = apiMode ? 'none' : 'block';
+  $('cleverNote').style.display = apiMode ? 'none' : 'block';
+  $('apiRewriteArea').style.display = apiMode ? 'block' : 'none';
+  if (!apiMode) ensureCleverWidget();
+}
+
+$('rewriteMethod').addEventListener('change', e => setRewriteMethod(e.target.value));
+setRewriteMethod('clever');
+
 $('btnRewrite').addEventListener('click', runRewrite);
 $('btnRewriteToInput').addEventListener('click', () => {
   if (!lastRewrittenText){ toast('Reescreva primeiro', 'error'); return; }

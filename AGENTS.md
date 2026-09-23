@@ -37,6 +37,13 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 
 `handleFile` (drop/upload) → extrai texto → `setInputText` → `runAnalyze`: `detectAI` (score/evidências) + `cleanText` (saída) + `renderAudit` (chars suspeitos) + `renderDiff` (original→limpo) + stats.
 
+## Widget Clever Humanizer (reescrita)
+
+- Método padrão do painel "Reescrever com IA" (`#rewriteMethod` = `clever`). Alternativa `api` (Puter/Gemini/Groq) fica oculta em `#apiRewriteArea`.
+- O script do widget (`widgets.cleverhumanizer.ai/widget.js`) é injetado **lazy** pelo `ensureCleverWidget()` quando o modo Clever é ativado (uma vez, com guard `cleverWidgetScriptLoaded`).
+- ID do widget: `data-clever-widget="b979b26728954c9986b7531b338bc4c7"` (tema `dark`), no `#cleverWidget` em `index.html`.
+- **Restrição**: é um iframe sandbox fechado — não existe API para enviar o texto do editor nem ler o resultado. O usuário copia o resultado dentro do widget. Não tentar integrar via `postMessage` de conteúdo.
+
 ## Verificação rápida
 
 ```bash

@@ -1,54 +1,60 @@
-# Design: Widget Clever Humanizer no painel "Reescrever com IA"
+# Design: Widget Clever Humanizer + provedores separados no painel "Reescrever com IA"
 
-Data: 2026-09-23
+Data: 2026-09-23 (atualizado: swap para iframe estático + provedores em cards)
 
 ## Contexto
 
-O painel "Reescrever com IA" hoje usa apenas provedores por API (Puter/Gemini/Groq). O usuário quer
-embutir o widget grátis do Clever Humanizer como método padrão, mantendo a opção de usar API.
+O painel "Reescrever com IA" usa o widget grátis do Clever Humanizer como método padrão e
+provedores por API como alternativa. O widget via `widget.js` (script) não aparecia (caixa
+invisível) — trocou-se para o **iframe de embed direto** (snippet oficial do Clever). Além disso,
+os provedores de API (Puter/Gemini/Groq) passam a ser cards separados, e o Puter ganha login
+explícito com botão próprio.
 
-## Restrição técnica (investigada)
+## Restrições técnicas (investigadas)
 
-O widget (`widgets.cleverhumanizer.ai/widget.js`) é um **iframe sandbox fechado**:
-
-- comunicação com a página apenas via `postMessage` de `clever:resize` (auto-ajuste de altura);
-- **não há API para enviar texto do editor** para o widget nem ler o resultado de volta;
-- o resultado é copiado manualmente pelo usuário (o iframe tem `allow="clipboard-write"`).
-
-Consequências:
-- o botão "↩️ Usar reescrita como entrada" **não existe no modo Clever** (impossível ler o iframe);
-- o texto digitado no widget vai para os servidores do Clever (não é processamento local) — a nota
-  de aviso deve deixar isso claro;
-- o iframe nasce com `opacity:0` e só fica visível após o handshake `clever:resize`; em `file://` o
-  handshake é rejeitado (origem `"null"`) — por isso há fallback de 3s forçando visibilidade com
-  altura fixa de 600px + scroll interno (auto-ajuste só quando o handshake funciona).
+- O embed do Clever é um **iframe sandbox fechado**: comunicação com a página só via `postMessage`
+  de resize; **não há API** para enviar o texto do editor nem ler o resultado — copiar manualmente.
+- O `widget.js` injetado criava o iframe com `opacity:0` e só o mostrava após handshake de resize;
+  em `file://` o handshake é rejeitado (origem `"null"`) → box nunca aparecia. **O iframe estático
+  não tem esse problema** (sem script host → sem opacity inicial 0). Em `file://` o embed pode
+  alegar origem não verificada — a nota recomenda `npx serve .`.
+- **puter.js v2** (`js.puter.com/v2/`, `defer` no head): API real é `puter.auth.signIn()` e
+  `puter.auth.isSignedIn()` (**não** `isLoggedIn`). Login explícito via botão; status em `#puterStatus`.
+  Em redes que bloqueiam `api.puter.com` o login/reescrita falham — chamadas guardadas com `withTimeout`.
 
 ## Decisões
 
-1. Seletor `#rewriteMethod` no topo do painel: `clever` (default) e `api`.
-2. Modo `clever`: mostra `#cleverWidget` e injeta o script do widget **lazy** (uma vez, com guard).
-   Esconde `#apiRewriteArea` (config de provedor + ações). `#rewriteStatus` exibe a orientação de uso.
-3. Modo `api`: comportamento atual inalterado.
-4. Estado inicial = `clever` (handler chamado no load).
-5. Sem persistência do método (YAGNI).
+1. Seletor `#rewriteMethod`: `clever` (default) e `api`.
+2. Modo `clever`: iframe estático em `#cleverWidget`
+   (`https://widgets.cleverhumanizer.ai/embed/b979b26728954c9986b7531b338bc4c7?theme=dark`,
+   750px, `sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"`,
+   `allow="clipboard-write"`, `referrerpolicy="origin"`). Sem injeção de `widget.js`.
+3. Modo `api`: três cards `.provider-card` com rádio `name="apiProvider"`
+   (`puter`/`gemini`/`groq`); corpo visível por vez (JS `bindApiProvider`).
+   - Puter: botão `#btnPuterLogin` → `puter.auth.signIn()` com timeout; `#puterStatus` mostra estado.
+   - Gemini: `#geminiKey` (localStorage `cleanmark_api_key_gemini`; migra de `cleanmark_api_key`).
+   - Groq: `#groqKey` (localStorage `cleanmark_api_key_groq`).
+4. Estado inicial = `clever` (handler chamado no load). Sem persistência do método (YAGNI).
 
 ## Arquivos afetados
 
-- `index.html` — painel de reescrita: select de método, `#cleverWidget`, wrapper `#apiRewriteArea`.
-- `js/app.js` (seção 15) — `ensureCleverWidget()` (injeção lazy) + handler de `#rewriteMethod` + init.
-- `css/style.css` — classe utilitária `.clever-widget` (espaçamento/nota).
-- `README.md` / `AGENTS.md` — documentar o widget, ID de embbed e limitação.
+- `index.html` — select de método, `#cleverWidget` (iframe), `#apiRewriteArea` (cards + ações).
+- `js/app.js` (seções 15b/15c) — `setRewriteMethod`, `bindApiProvider`, keys por provedor,
+  `updatePuterAuthState`/`puterLogin`, `runRewrite` lê rádio ativo.
+- `css/style.css` — `.provider-card`, `.provider-head`, `.provider-body`, `.provider-hint`,
+  `.puter-status` (+ `.clever-widget`/`.clever-note`).
+- `README.md` / `AGENTS.md` — documentar iframe estático, cards e API do puter.
 
 ## Funcionamento esperado
 
-1. Abre o app → painel Reescrever mostra o widget Clever embutido + nota de orientação.
-2. Usuário cola o texto dentro do widget, humaniza e copia o resultado (botão de copiar do widget).
-3. Seleciona "API" → config de provedor/API key + botões voltam; fluxo existente intacto.
+1. Abre o app → painel Reescrever mostra o iframe do Clever (750px) + nota de orientação.
+2. Seleciona "API" → cards por provedor; seleciona um, preenche key ou loga no Puter, reescreve.
+3. "↩️ Usar reescrita como entrada" só faz sentido no modo API (no Clever é manual).
 
 ## Verificação
 
 - `node --check js/app.js` (e demais JS).
 - Abrir `index.html` / `npx serve .`:
-  - modo Clever renderiza o iframe (sem erro no console);
-  - trocar para API e voltar funciona sem duplicar iframe;
-  - modo API com Puter/Gemini/Groq continua funcionando.
+  - modo Clever renderiza o iframe direto (sem injeção de `widget.js`, sem erro no console);
+  - trocar para API e voltar funciona sem duplicar;
+  - rádio dos provedores alterna só o corpo correto; puter mostra status sem `is not a function`.

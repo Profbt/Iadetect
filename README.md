@@ -11,7 +11,7 @@ Detector de escrita por IA e limpador de metadados. **100% client-side** — nen
 - **Highlight no editor**: marca visualmente cada categoria (quebras viram traço vertical, tabs viram bloco).
 - **Diff original → limpo**: com a lib `diff` (jsdiff).
 - **Arquivos**: arraste `.txt .md .csv .json .html .docx .xlsx .pptx .pdf .png .jpg .webp .gif .bmp`. Extrai texto de Office/PDF e limpa metadados (autor, genitor, datas) de documentos e imagens (EXIF/GPS via redraw em canvas).
-- **Reescrever com IA**: método padrão é o widget do **Clever Humanizer** (grátis, sem API key, embutido via iframe); alternativa via API com Puter.js, Gemini ou Groq (API key guardada só no `localStorage`). O widget é independente do editor — o resultado é copiado manualmente. Quando o handshake de auto-ajuste não responde (ex.: aberto via `file://`), a caixa usa altura fixa de 600px com scroll interno.
+- **Reescrever com IA**: método padrão é o widget do **Clever Humanizer** (grátis, sem API key, embutido via iframe); alternativa via API com **Puter.js** (login puter.com), **Gemini** ou **Groq** — cada um com seu campo de API key (só no `localStorage`). O widget é independente do editor — o resultado é copiado manualmente. Se abrir via `file://`, o Clever pode pedir verificação de origem: use `npx serve .`.
 
 ## Como rodar
 

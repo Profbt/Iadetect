@@ -22,7 +22,7 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 4. **Não remover o que é estrutura**: `\n`, `\t`, `\r` e espaço comum são whitespace legítimo — a auditoria deve tratá-los como normais (`isLegitWhitespace`). Nunca "limpe" quebras de linha.
 5. **Comentários**: só use os cabeçalhos de seção `// ===...` e, em pontos onde a lógica não é óbvia, um comentário curto explicando o porquê. Não emule explicação de código.
 6. **Testar antes de terminar**: valide a sintaxe com `node --check js/detector.js` (idem para os outros) e abra o `index.html` (ou `npx serve .`) para conferir que não há erro no console.
-7. **Dados/segurança**: API keys de reescrita ficam só no `localStorage` (`cleanmark_api_key`) e vão direto ao provedor escolhido. Não logue, não envie a backend, não adicione placeholder de key em HTML.
+7. **Dados/segurança**: API keys de reescrita (uma por provedor, `cleanmark_api_key_gemini` / `cleanmark_api_key_groq`) ficam só no `localStorage` e vão direto ao provedor escolhido. Não logue, não envie a backend, não adicione placeholder de key em HTML.
 8. **Libs CDN**: mantenha as versões atuais de JSZip, pdf-lib, diff, Puter e pdf.js. Checagem com `typeof X === 'undefined'` já cobre lib que não carregou.
 
 ## Padrões de código
@@ -39,11 +39,16 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 
 ## Widget Clever Humanizer (reescrita)
 
-- Método padrão do painel "Reescrever com IA" (`#rewriteMethod` = `clever`). Alternativa `api` (Puter/Gemini/Groq) fica oculta em `#apiRewriteArea`.
-- O script do widget (`widgets.cleverhumanizer.ai/widget.js`) é injetado **lazy** pelo `ensureCleverWidget()` quando o modo Clever é ativado (uma vez, com guard `cleverWidgetScriptLoaded`).
-- ID do widget: `data-clever-widget="b979b26728954c9986b7531b338bc4c7"` (tema `dark`), no `#cleverWidget` em `index.html`.
+- Método padrão do painel "Reescrever com IA" (`#rewriteMethod` = `clever`). Alternativa `api` fica oculta em `#apiRewriteArea`.
+- O Clever é um **iframe estático** no HTML (`#cleverWidget`), src `https://widgets.cleverhumanizer.ai/embed/b979b26728954c9986b7531b338bc4c7?theme=dark`, altura 750px, `sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"`, `allow="clipboard-write"`, `referrerpolicy="origin"`. **Não** injetar `widgets.cleverhumanizer.ai/widget.js` via script.
 - **Restrição**: é um iframe sandbox fechado — não existe API para enviar o texto do editor nem ler o resultado. O usuário copia o resultado dentro do widget. Não tentar integrar via `postMessage` de conteúdo.
-- **Visibilidade (fallback)**: o iframe nasce com `opacity:0` e só aparece após o handshake de `clever:resize`. Em `file://` o handshake é rejeitado (origem `"null"`). Por isso `ensureCleverWidget()` tem um `setTimeout` de 3s que força `opacity:1` + `height:600px` (scroll interno) se o handshake não responder.
+- Em `file://` o embed pode alegar origem não verificada; recomendar `npx serve .` na nota (`#cleverNote`).
+
+## Provedores de API (reescrita)
+
+- Três cards em `#apiRewriteArea` com rádio `name="apiProvider"` (`puter`/`gemini`/`groq`); corpo visível por vez via `.provider-body` (JS `bindApiProvider`).
+- **Puter.js**: script CDN `js.puter.com/v2/` no `<head>` com `defer` (só existe após o parsing). Login explícito com botão `#btnPuterLogin` → `puter.auth.signIn()`; estado mostrado em `#puterStatus`. API real do v2: `puter.auth.signIn()` e `puter.auth.isSignedIn()` (**não** `isLoggedIn`). Chamadas com `withTimeout`.
+- **Gemini/Groq**: keys próprias, guardadas só no `localStorage` (`cleanmark_api_key_gemini` / `cleanmark_api_key_groq`), vão direto ao provedor. Não logue, não envie a backend.
 
 ## Verificação rápida
 

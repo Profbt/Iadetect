@@ -554,8 +554,11 @@ async function rewriteWithGroq(text, apiKey){
 async function runRewrite(){
   const text = input.value.trim();
   if (!text){ toast('Cole algum texto primeiro', 'error'); return; }
-  const provider = $('providerSelect').value;
-  const apiKey = $('apiKeyInput').value.trim();
+  const active = document.querySelector('input[name="apiProvider"]:checked');
+  const provider = active ? active.value : 'puter';
+  let apiKey = '';
+  if (provider === 'gemini') apiKey = $('geminiKey').value.trim();
+  else if (provider === 'groq') apiKey = $('groqKey').value.trim();
   const btn = $('btnRewrite');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Reescrevendo...';
@@ -799,47 +802,69 @@ dz.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) han
 dz.addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
 
-$('providerSelect').addEventListener('change', e => {
-  $('apiKeyField').style.display = e.target.value === 'puter' ? 'none' : 'flex';
-});
-const savedKey = localStorage.getItem('cleanmark_api_key');
-if (savedKey) $('apiKeyInput').value = savedKey;
-$('apiKeyInput').addEventListener('input', e => localStorage.setItem('cleanmark_api_key', e.target.value));
-
 // ============================================================
 // 15b. MÉTODO DE REESCRITA (widget Clever × API)
 // ============================================================
-let cleverWidgetScriptLoaded = false;
-
-function ensureCleverWidget(){
-  if (cleverWidgetScriptLoaded) return;
-  cleverWidgetScriptLoaded = true;
-  const s = document.createElement('script');
-  s.src = 'https://widgets.cleverhumanizer.ai/widget.js';
-  s.async = true;
-  document.body.appendChild(s);
-  // O widget só fica visível após o handshake de resize do iframe. No file://
-  // (origem "null") o handshake é rejeitado e a caixa nunca aparece; se a rede
-  // está lenta, demora. Fallback: força visível + altura fixa (scroll interno).
-  setTimeout(() => {
-    const frame = document.querySelector('#cleverWidget iframe');
-    if (frame && frame.style.opacity !== '1'){
-      frame.style.opacity = '1';
-      frame.style.height = '600px';
-    }
-  }, 3000);
-}
+// O Clever é um iframe estático no HTML (embed). Modo API alterna os painéis.
 
 function setRewriteMethod(method){
   const apiMode = method === 'api';
   $('cleverWidget').style.display = apiMode ? 'none' : 'block';
   $('cleverNote').style.display = apiMode ? 'none' : 'block';
   $('apiRewriteArea').style.display = apiMode ? 'block' : 'none';
-  if (!apiMode) ensureCleverWidget();
 }
 
 $('rewriteMethod').addEventListener('change', e => setRewriteMethod(e.target.value));
 setRewriteMethod('clever');
+
+// ---- 15c. PROVEDORES DE API (Puter / Gemini / Groq em cards separados) ----
+function bindApiProvider(){
+  const radios = document.querySelectorAll('input[name="apiProvider"]');
+  const setBodies = () => {
+    const val = document.querySelector('input[name="apiProvider"]:checked').value;
+    document.querySelectorAll('.provider-body').forEach(b => b.style.display = 'none');
+    const body = $('providerBody' + val.charAt(0).toUpperCase() + val.slice(1));
+    if (body) body.style.display = 'flex';
+  };
+  radios.forEach(r => r.addEventListener('change', setBodies));
+  setBodies();
+}
+bindApiProvider();
+
+const savedGemini = localStorage.getItem('cleanmark_api_key_gemini') ||
+                    localStorage.getItem('cleanmark_api_key');
+if (savedGemini) $('geminiKey').value = savedGemini;
+$('geminiKey').addEventListener('input', e => localStorage.setItem('cleanmark_api_key_gemini', e.target.value));
+
+const savedGroq = localStorage.getItem('cleanmark_api_key_groq');
+if (savedGroq) $('groqKey').value = savedGroq;
+$('groqKey').addEventListener('input', e => localStorage.setItem('cleanmark_api_key_groq', e.target.value));
+
+function updatePuterAuthState(){
+  const st = $('puterStatus');
+  if (!st) return;
+  if (typeof puter === 'undefined'){ st.textContent = '⚠️ Puter.js não carregou.'; return; }
+  try {
+    let loggedIn = !!puter.user;
+    if (typeof puter.auth.isSignedIn === 'function') loggedIn = puter.auth.isSignedIn();
+    else if (typeof puter.auth.isLoggedIn === 'function') loggedIn = puter.auth.isLoggedIn();
+    st.textContent = loggedIn ? '✅ Logado na puter.com' : 'Ainda não logado — clique em "Entrar com puter.com".';
+  } catch(e){ st.textContent = '❌ ' + (e.message || 'erro ao checar login'); }
+}
+
+async function puterLogin(){
+  const st = $('puterStatus');
+  try {
+    st.textContent = 'Conectando com puter.com...';
+    await withTimeout(puter.auth.signIn(), 45000, 'Puter não respondeu (rede bloqueia api.puter.com?).');
+    updatePuterAuthState();
+  } catch(e){
+    st.textContent = '❌ ' + e.message;
+  }
+}
+$('btnPuterLogin').addEventListener('click', puterLogin);
+// o script do puter é defer: só existe após o parsing terminar
+window.addEventListener('DOMContentLoaded', () => setTimeout(updatePuterAuthState, 600));
 
 $('btnRewrite').addEventListener('click', runRewrite);
 $('btnRewriteToInput').addEventListener('click', () => {

@@ -818,6 +818,16 @@ function ensureCleverWidget(){
   s.src = 'https://widgets.cleverhumanizer.ai/widget.js';
   s.async = true;
   document.body.appendChild(s);
+  // O widget só fica visível após o handshake de resize do iframe. No file://
+  // (origem "null") o handshake é rejeitado e a caixa nunca aparece; se a rede
+  // está lenta, demora. Fallback: força visível + altura fixa (scroll interno).
+  setTimeout(() => {
+    const frame = document.querySelector('#cleverWidget iframe');
+    if (frame && frame.style.opacity !== '1'){
+      frame.style.opacity = '1';
+      frame.style.height = '600px';
+    }
+  }, 3000);
 }
 
 function setRewriteMethod(method){

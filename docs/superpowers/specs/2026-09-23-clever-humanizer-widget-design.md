@@ -18,7 +18,10 @@ O widget (`widgets.cleverhumanizer.ai/widget.js`) é um **iframe sandbox fechado
 Consequências:
 - o botão "↩️ Usar reescrita como entrada" **não existe no modo Clever** (impossível ler o iframe);
 - o texto digitado no widget vai para os servidores do Clever (não é processamento local) — a nota
-  de aviso deve deixar isso claro.
+  de aviso deve deixar isso claro;
+- o iframe nasce com `opacity:0` e só fica visível após o handshake `clever:resize`; em `file://` o
+  handshake é rejeitado (origem `"null"`) — por isso há fallback de 3s forçando visibilidade com
+  altura fixa de 600px + scroll interno (auto-ajuste só quando o handshake funciona).
 
 ## Decisões
 

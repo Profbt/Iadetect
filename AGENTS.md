@@ -43,6 +43,7 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 - O script do widget (`widgets.cleverhumanizer.ai/widget.js`) é injetado **lazy** pelo `ensureCleverWidget()` quando o modo Clever é ativado (uma vez, com guard `cleverWidgetScriptLoaded`).
 - ID do widget: `data-clever-widget="b979b26728954c9986b7531b338bc4c7"` (tema `dark`), no `#cleverWidget` em `index.html`.
 - **Restrição**: é um iframe sandbox fechado — não existe API para enviar o texto do editor nem ler o resultado. O usuário copia o resultado dentro do widget. Não tentar integrar via `postMessage` de conteúdo.
+- **Visibilidade (fallback)**: o iframe nasce com `opacity:0` e só aparece após o handshake de `clever:resize`. Em `file://` o handshake é rejeitado (origem `"null"`). Por isso `ensureCleverWidget()` tem um `setTimeout` de 3s que força `opacity:1` + `height:600px` (scroll interno) se o handshake não responder.
 
 ## Verificação rápida
 

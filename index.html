@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Detecte escrita por IA, remova watermarks e limpe metadados. 100% no navegador.">
+<title>CleanMark Pro — Detector de IA & Limpador de Metadados</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js" defer></script>
+<script src="https://js.puter.com/v2/" defer></script>
+</head>
+<body>
+
+<header>
+  <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;width:100%">
+    <div class="logo"><span class="logo-dot"></span>CleanMark Pro</div>
+    <span class="badge">100% client-side</span>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Detecte <span>escrita por IA</span><br>e limpe metadados</h1>
+    <p>Marcadores U+XXXX, tipografia atípica, espaços especiais, hífens, tags Unicode e quebras destacados no campo de entrada.</p>
+    <div class="privacy">🔒 Processamento local</div>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <div class="score-panel">
+    <div class="gauge">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r="68" fill="none" stroke="#2a2a3a" stroke-width="12"/>
+        <circle id="gaugeArc" cx="80" cy="80" r="68" fill="none" stroke="#4ade80" stroke-width="12"
+                stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427"/>
+      </svg>
+      <div class="val">
+        <span class="num" id="scoreNum">—</span>
+        <span class="lbl">Score IA</span>
+      </div>
+    </div>
+    <div>
+      <div class="verdict" id="verdict">Aguardando texto</div>
+      <div class="verdict-desc" id="verdictDesc">Cole um texto ou arraste um arquivo para analisar.</div>
+    </div>
+  </div>
+
+  <div class="result-panel" id="resultPanel" style="display:none">
+    <div class="result-head">
+      <div>
+        <div class="result-title" id="resultTitle">Arquivo processado</div>
+        <div class="result-sub" id="resultSub">Revise a análise acima e baixe quando quiser.</div>
+      </div>
+      <button class="result-close" id="btnDiscardResult" title="Descartar">✕</button>
+    </div>
+    <div class="result-body">
+      <div class="result-preview" id="resultPreview"></div>
+      <div class="result-info">
+        <div class="result-row"><span>Arquivo original</span><strong id="resultOrigName">—</strong></div>
+        <div class="result-row"><span>Tamanho original</span><strong id="resultOrigSize">—</strong></div>
+        <div class="result-row"><span>Arquivo limpo</span><strong id="resultCleanName">—</strong></div>
+        <div class="result-row"><span>Tamanho limpo</span><strong id="resultCleanSize">—</strong></div>
+        <div class="result-row" id="resultMarkerRow" style="display:none">
+          <span>Marcadores U+XXXX tratados</span><strong id="resultMarkers" class="warn">—</strong>
+        </div>
+        <div class="result-row" id="resultMetaRow" style="display:none">
+          <span>Metadados removidos</span><strong id="resultMeta" class="success">—</strong>
+        </div>
+      </div>
+    </div>
+    <div class="result-actions">
+      <button class="primary result-download" id="btnDownloadClean">⬇️ <span id="btnDownloadLabel">Baixar arquivo limpo</span></button>
+      <button id="btnDiscardResult2">Descartar</button>
+    </div>
+  </div>
+
+  <div class="tool">
+    <div class="dropzone" id="dropzone">
+      <strong>📎 Arraste um arquivo aqui</strong>
+      <small>ou clique — .txt .md .csv .json .html .docx .xlsx .pptx .pdf .png .jpg .webp</small>
+      <input type="file" id="fileInput" hidden
+             accept=".txt,.md,.csv,.json,.html,.htm,.xml,.log,.yaml,.yml,.docx,.xlsx,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp">
+    </div>
+
+    <div class="options">
+      <label class="opt-marker"><input type="checkbox" id="optHighlightMarkers" checked> 🔴 Marcadores U+XXXX</label>
+      <label class="opt-ai"><input type="checkbox" id="optHighlightAISignals" checked> 🟡 Sinais de IA</label>
+      <label class="opt-typo"><input type="checkbox" id="optHighlightTypo" checked> 🟣 Tipografia atípica</label>
+      <label class="opt-hyphen"><input type="checkbox" id="optHighlightHyphen" checked> 🟠 Hífens especiais</label>
+      <label class="opt-space"><input type="checkbox" id="optHighlightSpace" checked> 🔵 Espaços especiais</label>
+      <label class="opt-nl"><input type="checkbox" id="optHighlightNewlines" checked> ⬜ Quebras (U+000A) e tabs (U+0009)</label>
+    </div>
+
+    <div class="options">
+      <label><input type="checkbox" id="optDecodeMarkers" checked> Decodificar U+XXXX</label>
+      <label><input type="checkbox" id="optInvisible" checked> Remover invisíveis</label>
+      <label><input type="checkbox" id="optHtml" checked> Remover HTML</label>
+      <label><input type="checkbox" id="optNormalize" checked> Normalizar NFC</label>
+      <label><input type="checkbox" id="optWhitespace"> Colapsar espaços</label>
+      <label><input type="checkbox" id="optNormalizeTypo"> Normalizar tipografia</label>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="panel-head">
+          <span>Entrada</span>
+          <span class="marker-badge" id="markerBadge"></span>
+          <span class="ai-badge" id="aiBadge"></span>
+          <span id="inCount">0 caracteres</span>
+        </div>
+        <div class="editor-wrap">
+          <div class="editor-backdrop" id="backdrop" aria-hidden="true"></div>
+          <textarea id="input" placeholder="Cole aqui o texto..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span>Saída limpa</span><span id="outCount">0 caracteres</span></div>
+        <textarea id="output" placeholder="O resultado aparecerá aqui..." readonly spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnAnalyze">🔬 Analisar & Limpar</button>
+      <button id="btnCopy">📋 Copiar</button>
+      <button class="success" id="btnCopySanitized">🧼 Copiar sanitizado</button>
+      <button id="btnDownload">⬇️ Baixar texto</button>
+      <button id="btnClear">🗑️ Limpar</button>
+      <button id="btnSample">🧪 Exemplo IA</button>
+      <button id="btnSampleMarkers">🧪 Exemplo marcadores</button>
+      <button id="btnSampleTypo">🧪 Exemplo tipografia</button>
+    </div>
+
+    <div class="stats" id="stats" style="display:none">
+      <div class="stat"><div class="num" id="sOrig">0</div><div class="lbl">Chars originais</div></div>
+      <div class="stat"><div class="num neutral" id="sWhitespace">0</div><div class="lbl">Quebras/tabs</div></div>
+      <div class="stat"><div class="num warn" id="sMarkers">0</div><div class="lbl">Marcadores U+</div></div>
+      <div class="stat"><div class="num warn" id="sAISignals">0</div><div class="lbl">Sinais de IA</div></div>
+      <div class="stat"><div class="num danger" id="sHidden">0</div><div class="lbl">Chars ocultos</div></div>
+      <div class="stat"><div class="num typo" id="sTypo">0</div><div class="lbl">Tipografia</div></div>
+      <div class="stat"><div class="num space" id="sSpace">0</div><div class="lbl">Espaços especiais</div></div>
+      <div class="stat"><div class="num hyphen" id="sHyphen">0</div><div class="lbl">Hífens especiais</div></div>
+      <div class="stat"><div class="num tag" id="sTags">0</div><div class="lbl">Tags Unicode ⚠️</div></div>
+      <div class="stat"><div class="num" id="sRemoved">0</div><div class="lbl">Total removido</div></div>
+      <div class="stat"><div class="num" id="sTime">0ms</div><div class="lbl">Tempo</div></div>
+    </div>
+
+    <div class="audit-panel" id="auditPanel" style="display:none">
+      <h3>
+        <span>🔬 Auditoria de caracteres suspeitos</span>
+        <span style="font-size:.75rem;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">clique nos filtros para isolar categorias</span>
+      </h3>
+      <div id="auditTagsWarning"></div>
+      <div id="auditInfoLine"></div>
+      <div class="audit-filters" id="auditFilters"></div>
+      <div id="auditContent"></div>
+    </div>
+
+    <div class="evidence" id="evidencePanel" style="display:none">
+      <h3>🔍 Sinais de IA detectados</h3>
+      <div id="evidenceList"></div>
+    </div>
+
+    <div class="diff-section" id="diffSection" style="display:none">
+      <div class="diff-head">
+        <h3>🔀 Diff: original → limpo</h3>
+        <div class="diff-legend">
+          <span class="legend-item"><span class="legend-box removed"></span> Removido</span>
+          <span class="legend-item"><span class="legend-box added"></span> Adicionado</span>
+        </div>
+        <button id="btnToggleDiff" style="padding:6px 12px;font-size:.8rem">Ocultar</button>
+      </div>
+      <div class="diff-body" id="diffBody"></div>
+    </div>
+  </div>
+
+  <div class="rewrite-panel">
+    <h2>✍️ Reescrever com IA</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:16px">
+      Reescrever é a única forma de remover watermarks estatísticas (SynthID-Text, etc).
+    </p>
+
+    <div class="rewrite-config">
+      <div class="field">
+        <label for="providerSelect">Provedor</label>
+        <select id="providerSelect">
+          <option value="puter">Puter.js — grátis, sem API key</option>
+          <option value="gemini">Google Gemini — sua API key</option>
+          <option value="groq">Groq — sua API key</option>
+        </select>
+      </div>
+      <div class="field" id="apiKeyField" style="display:none">
+        <label for="apiKeyInput">API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="Fica só no seu navegador">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnRewrite">✨ Reescrever texto</button>
+      <button id="btnRewriteToInput">↩️ Usar reescrita como entrada</button>
+    </div>
+
+    <div class="rewrite-status" id="rewriteStatus"></div>
+  </div>
+
+  <section class="info">
+    <h2>Como funciona</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>⬜ Quebras e tabs</h3>
+        <p>Cada <code>U+000A</code> (quebra de linha) aparece como um traço vertical cinza no final da linha. Tabs aparecem como bloco azul-acinzentado. São estrutura, não são removidos.</p>
+      </div>
+      <div class="card">
+        <h3>🟣 Tipografia atípica</h3>
+        <p>Travessões (— –), aspas curvas (" " ' '), reticências (…), bullets (•), primas (′ ″). Opcionalmente normalizáveis para ASCII.</p>
+      </div>
+      <div class="card">
+        <h3>🔵 Espaços especiais</h3>
+        <p>NBSP, thin space, figure space — parecem espaço normal mas têm codepoints diferentes.</p>
+      </div>
+      <div class="card">
+        <h3>🔴 Unicode Tags</h3>
+        <p>Faixa <code>U+E0000–U+E007F</code> usada para esconder instruções em texto aparentemente normal. Presença é sinal forte de manipulação.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">CleanMark Pro — use com responsabilidade.</div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/detector.js"></script>
+<script src="js/cleaner.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -70,24 +70,37 @@ function sanitizeAggressive(text){
 // ============================================================
 // 10. DIFF
 // ============================================================
-function renderDiff(original, cleaned){
-  const section = $('diffSection');
-  const body = $('diffBody');
-  if (original === cleaned){ section.style.display = 'block'; body.innerHTML = '<div class="diff-empty">Nenhuma diferença.</div>'; return; }
-  if (original.length > 200000){ section.style.display = 'block'; body.innerHTML = '<div class="diff-empty">Texto muito grande.</div>'; return; }
-  if (typeof Diff === 'undefined'){ section.style.display = 'block'; body.innerHTML = '<div class="diff-empty">Diff não carregou.</div>'; return; }
+/**
+ * Gera o HTML do diff original → limpo (chars). Semântica:
+ * - vermelho riscado = o que existia e sumiu;
+ * - verde = o que apareceu e não estava antes.
+ * @param {string} original
+ * @param {string} cleaned
+ * @param {number} [maxChars] limite de caracteres exibidos
+ * @returns {string}
+ */
+function buildDiffHTML(original, cleaned, maxChars = 100000){
+  if (original === cleaned) return '<div class="diff-empty">Nenhuma diferença.</div>';
+  if (original.length > 200000 || cleaned.length > 200000) return '<div class="diff-empty">Texto muito grande.</div>';
+  if (typeof Diff === 'undefined') return '<div class="diff-empty">Diff não carregou.</div>';
   try {
     const changes = Diff.diffChars(original, cleaned);
     let html = '', shownChars = 0;
     for (const c of changes){
-      if (shownChars > 100000){ html += '<div class="diff-empty">… (truncado)</div>'; break; }
+      if (shownChars > maxChars){ html += '<div class="diff-empty">… (truncado)</div>'; break; }
       const val = escapeHtml(c.value);
       if (c.added) html += `<span class="d-add">${val}</span>`;
       else if (c.removed) html += `<span class="d-rem">${val}</span>`;
       else html += `<span class="d-eq">${val}</span>`;
       shownChars += c.value.length;
     }
-    body.innerHTML = html;
-    section.style.display = 'block';
-  } catch(e){ body.innerHTML = '<div class="diff-empty">Erro: ' + escapeHtml(e.message) + '</div>'; }
+    return html;
+  } catch(e){ return '<div class="diff-empty">Erro: ' + escapeHtml(e.message) + '</div>'; }
+}
+
+function renderDiff(original, cleaned){
+  const section = $('diffSection');
+  const body = $('diffBody');
+  body.innerHTML = buildDiffHTML(original, cleaned);
+  section.style.display = 'block';
 }

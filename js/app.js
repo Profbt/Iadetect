@@ -75,6 +75,69 @@ function updateBadges(){
   else aBadge.classList.remove('show');
 }
 
+const CAT_COLORS = { 'Vocabulário': '#c084fc', 'Frases': '#fbbf24', 'Estrutura': '#f87171' };
+
+/**
+ * Métricas (heurística): cor do veredito por métrica/valor.
+ * Comprimento médio é só informativo; uniformidade alta é SUSPEITA (invertida).
+ */
+function metricVerdictClass(key, verdict){
+  if (key === 'avgSentenceLength') return 'verdict-muted';
+  const bad = { burstiness: ['baixa'], lexicalDiversity: ['baixa'], paragraphUniformity: ['alta'] };
+  const isBad = (bad[key] || []).includes(verdict);
+  if (isBad) return 'verdict-bad';
+  return verdict === 'média' ? 'verdict-warn' : 'verdict-ok';
+}
+
+/** Preenche os 4 cards de métricas. */
+function renderMetricCards(metrics){
+  const grid = $('metricsGrid');
+  if (!metrics){ grid.style.display = 'none'; return; }
+  const fill = (key, valId, verdictId) => {
+    const m = metrics[key];
+    if (!m) return;
+    const val = $(valId);
+    if (val) val.textContent = typeof m.value === 'number'
+      ? (key === 'avgSentenceLength' ? m.value.toFixed(1) : m.value.toFixed(2)) : '—';
+    const vEl = $(verdictId);
+    if (vEl){
+      vEl.textContent = m.verdict;
+      vEl.className = 'metric-verdict ' + metricVerdictClass(key, m.verdict);
+    }
+  };
+  fill('burstiness', 'mBurstiness', 'mBurstinessVerdict');
+  fill('lexicalDiversity', 'mLexicalDiversity', 'mLexicalDiversityVerdict');
+  fill('avgSentenceLength', 'mAvgLen', 'mAvgLenVerdict');
+  fill('paragraphUniformity', 'mUniformity', 'mUniformityVerdict');
+  grid.style.display = 'grid';
+}
+
+/**
+ * Dashboard expandido: gauge/veredito + barras por categoria + cards de métricas.
+ * @param {{score:number, breakdown:object}} detection saída de detectAI()
+ */
+function renderScoreDashboard(detection){
+  renderScore(detection.score);
+  const breakdown = detection.breakdown || { byCategory: {}, metrics: null };
+  const barsEl = $('breakdownBars');
+  const cats = Object.keys(breakdown.byCategory || {});
+  if (cats.length === 0){
+    $('scoreBreakdown').style.display = 'none';
+  } else {
+    barsEl.innerHTML = cats.map(c => {
+      const bc = breakdown.byCategory[c];
+      const color = CAT_COLORS[c] || 'linear-gradient(90deg,var(--accent),var(--accent-2))';
+      return `<div class="breakdown-bar">
+        <span class="breakdown-label">${escapeHtml(c)}</span>
+        <span class="bar"><span class="bar-fill" style="width:${bc.percentage}%;background:${color}"></span></span>
+        <span class="breakdown-value">${bc.percentage}% <small>${bc.matches}×</small></span>
+      </div>`;
+    }).join('');
+    $('scoreBreakdown').style.display = 'block';
+  }
+  renderMetricCards(breakdown.metrics);
+}
+
 function renderScore(score){
   const v = verdictFor(score);
   $('scoreNum').textContent = score;
@@ -222,7 +285,7 @@ function runAnalyze(){
   const text = input.value;
   if (!text.trim()){ toast('Cole algum texto ou arraste um arquivo primeiro', 'error'); return; }
   const det = detectAI(text);
-  renderScore(det.score);
+  renderScoreDashboard(det);
   renderEvidence(det.evidence);
   const { text: cleaned, stats } = cleanText(text, getOpts());
   output.value = cleaned;
@@ -583,11 +646,12 @@ async function runRewrite(){
     updateCounts();
     const detNew = detectAI(rewritten);
     const detOld = detectAI(text);
-    renderScore(detNew.score);
+    renderScoreDashboard(detNew);
     renderEvidence(detNew.evidence);
     renderDiff(text, rewritten);
     setRewriteStatus(`✅ Reescrito. Score: ${detOld.score} → ${detNew.score}`, 'success');
     toast('Reescrito! Score: ' + detOld.score + ' → ' + detNew.score, 'success');
+    fillCompareFromRewrite(text, rewritten);
   } catch(e){
     console.error(e);
     setRewriteStatus('❌ ' + e.message, 'error');
@@ -938,6 +1002,117 @@ $('btnRewriteToInput').addEventListener('click', () => {
   runAnalyze();
   toast('Movido para entrada', 'success');
 });
+
+// ============================================================
+// 17. ANÁLISE COMPARATIVA (A × B)
+// ============================================================
+function scoreClass(score){
+  const v = verdictFor(score);
+  if (v.color === '#f87171') return 'score-bad';
+  if (v.color === '#4ade80') return 'score-good';
+  return 'score-warn';
+}
+
+function compareValue(m, key){
+  return m && typeof m.value === 'number'
+    ? (key === 'avgSentenceLength' ? m.value.toFixed(1) : m.value.toFixed(2)) : '—';
+}
+
+function buildCompareTable(detA, detB){
+  const mA = detA.breakdown && detA.breakdown.metrics;
+  const mB = detB.breakdown && detB.breakdown.metrics;
+  const rows = [];
+  const addRow = (label, va, vb, delta, cls) => {
+    const d = delta === null ? '—' : (delta >= 0 ? '+' + delta.toFixed(2) : delta.toFixed(2));
+    rows.push(`<tr><td>${label}</td><td>${va}</td><td>${vb}</td><td class="cmp-delta ${cls}">${d}</td></tr>`);
+  };
+
+  const scoreDelta = detB.score - detA.score;
+  addRow('Score IA', detA.score, detB.score, scoreDelta,
+    scoreDelta < 0 ? 'delta-good' : scoreDelta > 0 ? 'delta-bad' : 'delta-muted');
+
+  if (mA && mB){
+    const dims = ['burstiness', 'lexicalDiversity', 'paragraphUniformity'];
+    if (mA.burstiness) dims.push('avgSentenceLength');
+    for (const key of dims){
+      const delta = (typeof mA[key].value === 'number' && typeof mB[key].value === 'number')
+        ? +(mB[key].value - mA[key].value).toFixed(2) : null;
+      let cls = 'delta-muted';
+      if (delta !== null){
+        if (key === 'burstiness' || key === 'lexicalDiversity') cls = delta > 0 ? 'delta-good' : delta < 0 ? 'delta-bad' : 'delta-muted';
+        else if (key === 'paragraphUniformity') cls = delta < 0 ? 'delta-good' : delta > 0 ? 'delta-bad' : 'delta-muted';
+      }
+      addRow(mA[key].label, compareValue(mA, key), compareValue(mB, key), delta, cls);
+    }
+  } else {
+    addRow('Métricas', '—', '—', null, 'delta-muted');
+  }
+
+  return `<table>
+    <thead><tr><th>Métrica</th><th>Texto A</th><th>Texto B</th><th>Δ</th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>`;
+}
+
+function runCompare(){
+  const a = $('compareA').value;
+  const b = $('compareB').value;
+  if (!a.trim() || !b.trim()){ toast('Cole os dois textos para comparar', 'error'); return; }
+  const detA = detectAI(a);
+  const detB = detectAI(b);
+
+  const badge = (elId, det) => {
+    const el = $(elId);
+    el.textContent = 'Score IA: ' + det.score;
+    el.className = 'compare-score ' + scoreClass(det.score);
+  };
+  badge('compareScoreA', detA);
+  badge('compareScoreB', detB);
+
+  const s = $('compareSummary');
+  if (detB.score < detA.score){
+    const pts = detA.score - detB.score;
+    const pct = detA.score > 0 ? Math.round(pts / detA.score * 100) : 0;
+    s.innerHTML = `<div class="compare-summary-ok">✅ Texto B é menos provável de ser IA: score caiu <strong>${pts} pontos</strong> (${pct}%). A reescrita ajudou.</div>`;
+  } else if (detB.score > detA.score){
+    const pts = detB.score - detA.score;
+    s.innerHTML = `<div class="compare-summary-bad">⚠️ Texto B tem score MAIOR que A (a reescrita piorou em ${pts} pontos).</div>`;
+  } else {
+    s.innerHTML = `<div class="compare-summary-ok">Scores idênticos (${detA.score}).</div>`;
+  }
+
+  $('compareMetricsTable').innerHTML = buildCompareTable(detA, detB);
+  $('compareDiff').innerHTML = buildDiffHTML(a, b);
+  $('compareResults').style.display = 'block';
+}
+
+/** Fluxo integrado: após reescrever, preenche A (original) × B (reescrita) e compara. */
+function fillCompareFromRewrite(original, rewritten){
+  $('compareA').value = original;
+  $('compareB').value = rewritten;
+  runCompare();
+  const panel = $('comparePanel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('btnCompare').addEventListener('click', runCompare);
+$('btnCompareClear').addEventListener('click', () => {
+  $('compareA').value = '';
+  $('compareB').value = '';
+  $('compareScoreA').textContent = '—';
+  $('compareScoreB').textContent = '—';
+  $('compareScoreA').className = 'compare-score';
+  $('compareScoreB').className = 'compare-score';
+  $('compareResults').style.display = 'none';
+});
+$('btnCompareSwap').addEventListener('click', () => {
+  const a = $('compareA'), b = $('compareB');
+  const tmp = a.value;
+  a.value = b.value;
+  b.value = tmp;
+});
+$('btnSendA').addEventListener('click', () => { $('compareA').value = input.value; });
+$('btnSendB').addEventListener('click', () => { $('compareB').value = output.value; });
 
 updateCounts();
 syncBackdrop();

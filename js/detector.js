@@ -21,23 +21,149 @@ const AI_PATTERNS = [
   { id:'struct-emoji', cat:'Estrutura', weight:2, re:/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, note:'Emojis em texto corrido.' },
 ];
 
+// ============================================================
+// 1b. MÉTRICAS ESTILÍSTICAS
+// ============================================================
+// Pesos do score final (soma com PATTERN_WEIGHT = 100). SÃO HEURÍSTICOS
+// E AJUSTÁVEIS: mexa aqui para calibrar a sensibilidade do dashboard.
+const METRIC_WEIGHTS = {
+  burstiness: 8,
+  lexicalDiversity: 6,
+  paragraphUniformity: 4,
+  avgSentenceLength: 2
+};
+const PATTERN_WEIGHT = 100 - (METRIC_WEIGHTS.burstiness + METRIC_WEIGHTS.lexicalDiversity +
+                              METRIC_WEIGHTS.paragraphUniformity + METRIC_WEIGHTS.avgSentenceLength);
+
+/**
+ * Variação no comprimento de frases consecutivas (coeficiente de variação, 0-1).
+ * 1 = altíssima variação = estilo humano; 0 = frases todas iguais = padrão de IA.
+ * @param {string} text
+ * @returns {{value:number, verdict:string}} value 0-1
+ */
+function computeBurstiness(text){
+  const sentences = text.split(/[.!?]+|\n{2,}/).map(s => s.trim()).filter(s => s.length > 0);
+  const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  if (lengths.length < 2) return { value: 0.5, verdict: 'média' };
+  const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  const sd = Math.sqrt(lengths.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lengths.length);
+  const cv = mean > 0 ? Math.min(1, sd / mean) : 0;
+  const verdict = cv >= 0.6 ? 'alta' : cv >= 0.35 ? 'média' : 'baixa';
+  return { value: +cv.toFixed(2), verdict };
+}
+
+/**
+ * Razão tipo-token (palavras únicas / total), com correção para textos curtos.
+ * Alta diversidade = mais humano; baixa = vocabulário repetitivo de LLM.
+ * @param {string} text
+ * @returns {{value:number, verdict:string}} value 0-1
+ */
+function computeLexicalDiversity(text){
+  const tokens = text.toLowerCase().match(/\b\w+\b/g) || [];
+  const total = tokens.length;
+  if (total === 0) return { value: 0.5, verdict: 'média' };
+  const unique = new Set(tokens).size;
+  let ttr = unique / total;
+  if (total < 200) ttr = Math.min(1, ttr * (1 + (200 - total) / 400));
+  const verdict = ttr >= 0.6 ? 'alta' : ttr >= 0.45 ? 'média' : 'baixa';
+  return { value: +ttr.toFixed(2), verdict };
+}
+
+/**
+ * Média de palavras por frase (valor bruto + rótulo qualitativo).
+ * @param {string} text
+ * @returns {{value:number, verdict:string}} verdict: curta/média/longa/muito longa
+ */
+function computeAvgSentenceLength(text){
+  const sentences = text.split(/[.!?]+|\n{2,}/).map(s => s.trim()).filter(s => s.length > 0);
+  const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  const avg = lengths.length ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0;
+  const value = +avg.toFixed(1);
+  const verdict = value < 12 ? 'curta' : value <= 20 ? 'média' : value <= 30 ? 'longa' : 'muito longa';
+  return { value, verdict };
+}
+
+/**
+ * Uniformidade do comprimento dos parágrafos (1 - coeficiente de variação, 0-1).
+ * Parágrafos todos do mesmo tamanho = 1 = mais suspeito.
+ * @param {string} text
+ * @returns {{value:number, verdict:string}} value 0-1
+ */
+function computeParagraphUniformity(text){
+  const paragraphs = text.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 0);
+  const lengths = paragraphs.map(p => p.split(/\s+/).filter(Boolean).length);
+  if (lengths.length < 2) return { value: 0.5, verdict: 'média' };
+  const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  const sd = Math.sqrt(lengths.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lengths.length);
+  const cv = mean > 0 ? Math.min(1, sd / mean) : 0;
+  const value = +(1 - cv).toFixed(2);
+  const verdict = value >= 0.75 ? 'alta' : value >= 0.5 ? 'média' : 'baixa';
+  return { value, verdict };
+}
+
 function detectAI(text){
   const t0 = performance.now();
   const evidence = [];
   let rawScore = 0, totalMatches = 0;
+  const catTotals = {};
   for (const p of AI_PATTERNS){
     const matches = [...text.matchAll(p.re)];
     if (matches.length === 0) continue;
     totalMatches += matches.length;
     const contribution = p.weight * Math.min(matches.length, 5);
     rawScore += contribution;
+    const cat = catTotals[p.cat] = catTotals[p.cat] || { matches: 0, rawScore: 0 };
+    cat.matches += matches.length;
+    cat.rawScore += contribution;
     const samples = matches.slice(0, 3).map(m => m[0].trim());
     evidence.push({ id:p.id, cat:p.cat, note:p.note, count:matches.length, contribution, samples });
   }
   const lengthFactor = Math.min(text.length / 400, 1);
-  const score = Math.min(100, Math.round(rawScore * 4 * lengthFactor));
+  const patternScore = Math.min(100, Math.round(rawScore * 4 * lengthFactor));
   evidence.sort((a,b) => b.contribution - a.contribution);
-  return { score, evidence, time: Math.round(performance.now() - t0), totalMatches };
+
+  // Métricas pesadas até 200 KB; além disso, mostra apenas padrões (perf)
+  const heavy = text.length <= 200000;
+  const metrics = heavy ? {
+    burstiness: { label: 'Burstiness', weight: METRIC_WEIGHTS.burstiness, ...computeBurstiness(text) },
+    lexicalDiversity: { label: 'Diversidade lexical', weight: METRIC_WEIGHTS.lexicalDiversity, ...computeLexicalDiversity(text) },
+    avgSentenceLength: { label: 'Comprimento médio de frase', weight: METRIC_WEIGHTS.avgSentenceLength, ...computeAvgSentenceLength(text) },
+    paragraphUniformity: { label: 'Uniformidade de parágrafos', weight: METRIC_WEIGHTS.paragraphUniformity, ...computeParagraphUniformity(text) }
+  } : null;
+
+  // Score final = padrões (peso PATTERN_WEIGHT) + penalidades das métricas.
+  // Heurístico: pesos em METRIC_WEIGHTS; ajuste com critério.
+  let rawTotal = patternScore * (PATTERN_WEIGHT / 100);
+  if (heavy && metrics){
+    rawTotal += (1 - metrics.burstiness.value) * METRIC_WEIGHTS.burstiness;
+    rawTotal += (1 - metrics.lexicalDiversity.value) * METRIC_WEIGHTS.lexicalDiversity;
+    rawTotal += metrics.paragraphUniformity.value * METRIC_WEIGHTS.paragraphUniformity;
+    if (metrics.avgSentenceLength.value > 25) rawTotal += METRIC_WEIGHTS.avgSentenceLength;
+  }
+  const score = Math.min(100, Math.round(rawTotal));
+
+  // Breakdown por categoria (distribui a parcela de padrões proporcional aos sinais)
+  const catNames = Object.keys(catTotals);
+  const byCategory = {};
+  const catTotalRaw = catNames.reduce((s, c) => s + catTotals[c].rawScore, 0) || 1;
+  for (const c of catNames.sort((a, b) => catTotals[b].rawScore - catTotals[a].rawScore)){
+    const share = catTotals[c].rawScore / catTotalRaw;
+    byCategory[c] = {
+      matches: catTotals[c].matches,
+      rawScore: catTotals[c].rawScore,
+      contribution: Math.round(patternScore * share),
+      percentage: Math.round(share * 100)
+    };
+  }
+
+  const breakdown = {
+    byCategory,
+    metrics,
+    totalWeight: 100,
+    rawTotal: +rawTotal.toFixed(1)
+  };
+
+  return { score, evidence, time: Math.round(performance.now() - t0), totalMatches, breakdown };
 }
 
 function verdictFor(score){

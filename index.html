@@ -33,7 +33,7 @@
 
   <div class="score-panel">
     <div class="gauge">
-      <svg width="160" height="160" viewBox="0 0 160 160">
+      <svg width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Score de escrita por IA">
         <circle cx="80" cy="80" r="68" fill="none" stroke="#2a2a3a" stroke-width="12"/>
         <circle id="gaugeArc" cx="80" cy="80" r="68" fill="none" stroke="#4ade80" stroke-width="12"
                 stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427"/>
@@ -43,9 +43,37 @@
         <span class="lbl">Score IA</span>
       </div>
     </div>
-    <div>
+    <div class="score-details">
       <div class="verdict" id="verdict">Aguardando texto</div>
       <div class="verdict-desc" id="verdictDesc">Cole um texto ou arraste um arquivo para analisar.</div>
+
+      <div class="score-breakdown" id="scoreBreakdown" style="display:none">
+        <h4>Contribuição por categoria</h4>
+        <div id="breakdownBars"></div>
+      </div>
+
+      <div class="metrics-grid" id="metricsGrid" style="display:none">
+        <div class="metric-card" data-metric="burstiness">
+          <div class="metric-value" id="mBurstiness">—</div>
+          <div class="metric-label">Burstiness</div>
+          <div class="metric-verdict" id="mBurstinessVerdict">—</div>
+        </div>
+        <div class="metric-card" data-metric="lexicalDiversity">
+          <div class="metric-value" id="mLexicalDiversity">—</div>
+          <div class="metric-label">Diversidade lexical</div>
+          <div class="metric-verdict" id="mLexicalDiversityVerdict">—</div>
+        </div>
+        <div class="metric-card" data-metric="avgSentenceLength">
+          <div class="metric-value" id="mAvgLen">—</div>
+          <div class="metric-label">Comprimento médio</div>
+          <div class="metric-verdict" id="mAvgLenVerdict">—</div>
+        </div>
+        <div class="metric-card" data-metric="paragraphUniformity">
+          <div class="metric-value" id="mUniformity">—</div>
+          <div class="metric-label">Uniformidade parágrafos</div>
+          <div class="metric-verdict" id="mUniformityVerdict">—</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -175,6 +203,47 @@
         <button id="btnToggleDiff" style="padding:6px 12px;font-size:.8rem">Ocultar</button>
       </div>
       <div class="diff-body" id="diffBody"></div>
+    </div>
+  </div>
+
+  <div class="compare-panel" id="comparePanel">
+    <h2>⚖️ Análise Comparativa</h2>
+    <p class="compare-hint">
+      Cole dois textos para comparar scores de IA, métricas e diferenças.
+      Ideal para validar o resultado de uma reescrita.
+    </p>
+
+    <div class="compare-grid">
+      <div class="compare-col">
+        <div class="compare-head">
+          <label for="compareA">Texto A (original)</label>
+          <button class="btn-mini" id="btnSendA" aria-label="Enviar texto da entrada para A">⬅️ Enviar entrada</button>
+        </div>
+        <textarea id="compareA" placeholder="Cole o texto A aqui..." spellcheck="false"></textarea>
+        <div class="compare-score" id="compareScoreA">—</div>
+      </div>
+
+      <div class="compare-col">
+        <div class="compare-head">
+          <label for="compareB">Texto B (reescrito)</label>
+          <button class="btn-mini" id="btnSendB" aria-label="Enviar saída limpa para B">⬅️ Enviar saída</button>
+        </div>
+        <textarea id="compareB" placeholder="Cole o texto B aqui..." spellcheck="false"></textarea>
+        <div class="compare-score" id="compareScoreB">—</div>
+      </div>
+    </div>
+
+    <div class="compare-actions">
+      <button class="primary" id="btnCompare">🔍 Comparar</button>
+      <button id="btnCompareClear">🗑️ Limpar</button>
+      <button id="btnCompareSwap">🔄 Trocar A ↔ B</button>
+    </div>
+
+    <div class="compare-results" id="compareResults" style="display:none">
+      <h3>📊 Resultado da comparação</h3>
+      <div class="compare-summary" id="compareSummary"></div>
+      <div class="compare-metrics-table" id="compareMetricsTable"></div>
+      <div class="compare-diff" id="compareDiff"></div>
     </div>
   </div>
 

@@ -10,9 +10,9 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 
 - **`index.html`** — só marcação. Nada de CSS/JS inline. Scripts locais carregados **no fim do `<body>`** via `<script src>` sequencial.
 - **`css/style.css`** — todo o estilo; tema definido via variáveis em `:root`. Não use estilos inline no HTML a menos que seja para um valor dinâmico controlado por JS.
-- **`js/detector.js`** — análise pura (sem DOM): `AI_PATTERNS`, `detectAI`, marcadores U+XXXX, `CHAR_INFO`/`getCharInfo`, regex, `buildBackdropHTML`. A maior parte é dados + funções puras.
-- **`js/cleaner.js`** — `cleanText`, `normalizeTypography`, `sanitizeAggressive`, `renderDiff`.
-- **`js/app.js`** — o resto: estado global, helpers de DOM (`$`, `getOpts`, `updateCounts`, `syncBackdrop`), renderização (score, auditoria, painel de resultado), extração/limpeza de arquivos (Office/PDF/imagem), provedores de reescrita e todos os **event listeners**.
+- **`js/detector.js`** — análise pura (sem DOM): `AI_PATTERNS`, `detectAI`, métricas estilísticas (`computeBurstiness`, `computeLexicalDiversity`, `computeAvgSentenceLength`, `computeParagraphUniformity`), `METRIC_WEIGHTS`/`PATTERN_WEIGHT`, marcadores U+XXXX, `CHAR_INFO`/`getCharInfo`, regex, `buildBackdropHTML`. A maior parte é dados + funções puras.
+- **`js/cleaner.js`** — `cleanText`, `normalizeTypography`, `sanitizeAggressive`, `buildDiffHTML` (gera o HTML de diff; `renderDiff` só injeta em `#diffBody`).
+- **`js/app.js`** — o resto: estado global, helpers de DOM (`$`, `getOpts`, `updateCounts`, `syncBackdrop`), renderização (score dashboard com breakdown/métricas, auditoria, painel de resultado), extração/limpeza de arquivos (Office/PDF/imagem), provedores de reescrita, análise comparativa e todos os **event listeners**.
 
 ## Regras obrigatórias
 
@@ -35,7 +35,15 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 
 ## Funciona assim (fluxo principal)
 
-`handleFile` (drop/upload) → extrai texto → `setInputText` → `runAnalyze`: `detectAI` (score/evidências) + `cleanText` (saída) + `renderAudit` (chars suspeitos) + `renderDiff` (original→limpo) + stats.
+`handleFile` (drop/upload) → extrai texto → `setInputText` → `runAnalyze`: `detectAI` (score/evidências/breakdown) + `cleanText` (saída) + `renderAudit` (chars suspeitos) + `renderDiff` (original→limpo) + stats. O score usa `renderScoreDashboard` (gauge + barras por categoria `#breakdownBars` + cards de métricas `#metricsGrid`) — métricas só até 200 KB (perf), e `#scoreBreakdown`/`#metricsGrid` ficam ocultos sem dados.
+
+## Score dashboard e comparativo (análise comparativa)
+
+- Score final é heurístico e sem sabotar texto limpo: `PATTERN_WEIGHT=80` + `METRIC_WEIGHTS` (burstiness 8, diversidade 6, uniformidade 4, comprimento 2 — soma 100). Penalidade por métrica = peso × (valor que não é "saudável"); comprimento só penaliza se média > 25. Ajuste aqui se calibrar em corpus real.
+- Vereditos das métricas: burstiness ≥0.6 alta / ≥0.35 média; diversidade ≥0.6 alta / ≥0.45 média; uniformidade ≥0.75 alta / ≥0.5 média (uniformidade ALTA é suspeita — invertida); comprimento <12 curta, 12–20 média, 20–30 longa, >30 muito longa (informativo). Guardas de texto curto retornam neutro (0.5/média).
+- `buildDiffHTML(original, cleaned, maxChars=100000)` é a função reutilizável de diff — usada pelo `renderDiff` e pelo comparativo; não duplicar lógica.
+- Painel `#comparePanel` (antes de `.rewrite-panel`): `btnSendA`/`btnSendB` copiam `#input`/`#output`; `runCompare()` chama `detectAI` nos dois, monta tabela de métricas com delta (Δ verde = melhora) via `buildCompareTable`, diff e resumo. Guarda de rewrite: `fillCompareFromRewrite` preenche original × reescrita, compara e rola até o painel — não quebrar esse fluxo.
+- Cores de categoria fixas no dashboard: `CAT_COLORS` em `app.js` (Vocabulário `#c084fc`, Frases `#fbbf24`, Estrutura `#f87171`). Classes de veredito: `verdict-ok/-warn/-bad/-muted`; deltas `delta-good/-bad/-muted`.
 
 ## Widget Clever Humanizer (reescrita)
 

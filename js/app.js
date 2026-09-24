@@ -515,6 +515,7 @@ function withTimeout(promise, ms, errorMsg){
 }
 
 async function rewriteWithPuter(text){
+  await loadPuter();
   if (typeof puter === 'undefined') throw new Error('Puter.js não carregou.');
   const response = await withTimeout(
     puter.ai.chat(REWRITE_PROMPT + text, { model: 'gpt-4o-mini', stream: false }),
@@ -554,6 +555,9 @@ async function rewriteWithGroq(text, apiKey){
 async function runRewrite(){
   const text = input.value.trim();
   if (!text){ toast('Cole algum texto primeiro', 'error'); return; }
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 30){ toast('Texto muito curto para reescrever (mínimo 30 palavras).', 'error'); return; }
+  if (wordCount > 1500){ toast('Texto muito longo (máximo 1.500 palavras por vez).', 'error'); return; }
   const active = document.querySelector('input[name="apiProvider"]:checked');
   const provider = active ? active.value : 'puter';
   let apiKey = '';
@@ -812,22 +816,54 @@ function setRewriteMethod(method){
   $('cleverWidget').style.display = apiMode ? 'none' : 'block';
   $('cleverNote').style.display = apiMode ? 'none' : 'block';
   $('apiRewriteArea').style.display = apiMode ? 'block' : 'none';
+  if (apiMode){
+    loadPuter()
+      .then(updatePuterAuthState)
+      .catch(e => { const st = $('puterStatus'); if (st) st.textContent = '❌ ' + e.message; });
+  }
 }
 
 $('rewriteMethod').addEventListener('change', e => setRewriteMethod(e.target.value));
 setRewriteMethod('clever');
 
 // ---- 15c. PROVEDORES DE API (Puter / Gemini / Groq em cards separados) ----
+let puterLoaded = false;
+function loadPuter(){
+  return new Promise((resolve, reject) => {
+    if (typeof puter !== 'undefined'){ puter.quiet = true; resolve(puter); return; }
+    if (puterLoaded){ reject(new Error('Puter.js ainda carregando. Tente de novo.')); return; }
+    puterLoaded = true;
+    const s = document.createElement('script');
+    s.src = 'https://js.puter.com/v2/';
+    s.onload = () => {
+      const boot = setInterval(() => {
+        if (!window.puter) return;
+        clearInterval(boot);
+        puter.quiet = true;
+        resolve(puter);
+      }, 100);
+      setTimeout(() => { clearInterval(boot); }, 15000);
+    };
+    s.onerror = () => reject(new Error('Não foi possível carregar Puter.js (rede?).'));
+    document.body.appendChild(s);
+  });
+}
+
 function bindApiProvider(){
   const radios = document.querySelectorAll('input[name="apiProvider"]');
-  const setBodies = () => {
+  const setBodies = (skipLoad) => {
     const val = document.querySelector('input[name="apiProvider"]:checked').value;
     document.querySelectorAll('.provider-body').forEach(b => b.style.display = 'none');
     const body = $('providerBody' + val.charAt(0).toUpperCase() + val.slice(1));
     if (body) body.style.display = 'flex';
+    if (val === 'puter' && !skipLoad){
+      loadPuter()
+        .then(updatePuterAuthState)
+        .catch(e => { const st = $('puterStatus'); if (st) st.textContent = '❌ ' + e.message; });
+    }
   };
-  radios.forEach(r => r.addEventListener('change', setBodies));
-  setBodies();
+  radios.forEach(r => r.addEventListener('change', () => setBodies(false)));
+  setBodies(true);
 }
 bindApiProvider();
 
@@ -843,7 +879,7 @@ $('groqKey').addEventListener('input', e => localStorage.setItem('cleanmark_api_
 function updatePuterAuthState(){
   const st = $('puterStatus');
   if (!st) return;
-  if (typeof puter === 'undefined'){ st.textContent = '⚠️ Puter.js não carregou.'; return; }
+  if (typeof puter === 'undefined'){ st.textContent = 'Carrega ao clicar em "Entrar" ou "Reescrever texto".'; return; }
   try {
     let loggedIn = !!puter.user;
     if (typeof puter.auth.isSignedIn === 'function') loggedIn = puter.auth.isSignedIn();
@@ -855,6 +891,8 @@ function updatePuterAuthState(){
 async function puterLogin(){
   const st = $('puterStatus');
   try {
+    st.textContent = 'Carregando Puter e conectando...';
+    await loadPuter();
     st.textContent = 'Conectando com puter.com...';
     await withTimeout(puter.auth.signIn(), 45000, 'Puter não respondeu (rede bloqueia api.puter.com?).');
     updatePuterAuthState();

@@ -47,8 +47,10 @@ Single-page app estático de detecção de escrita IA + limpeza de metadados. In
 ## Provedores de API (reescrita)
 
 - Três cards em `#apiRewriteArea` com rádio `name="apiProvider"` (`puter`/`gemini`/`groq`); corpo visível por vez via `.provider-body` (JS `bindApiProvider`).
-- **Puter.js**: script CDN `js.puter.com/v2/` no `<head>` com `defer` (só existe após o parsing). Login explícito com botão `#btnPuterLogin` → `puter.auth.signIn()`; estado mostrado em `#puterStatus`. API real do v2: `puter.auth.signIn()` e `puter.auth.isSignedIn()` (**não** `isLoggedIn`). Chamadas com `withTimeout`.
+- **Puter.js**: NÃO fica mais no `<head>`. Carregado **sob demanda** por `loadPuter()` (injetado quando o modo API é aberto, radio muda para puter ou rewrite usa puter). Define `puter.quiet = true` no boot (suprime banner; o v2 nem sempre tem `isLoggedIn` — usar `puter.auth.isSignedIn()`). Login explícito: botão `#btnPuterLogin` → `loadPuter()` → `puter.auth.signIn()`; estado em `#puterStatus`. Chamadas com `withTimeout`.
 - **Gemini/Groq**: keys próprias, guardadas só no `localStorage` (`cleanmark_api_key_gemini` / `cleanmark_api_key_groq`), vão direto ao provedor. Não logue, não envie a backend.
+- **Limite por vez**: 30 a 1.500 palavras (aviso `#wordLimitNote` + guard no `runRewrite`).
+- Erros de CSP/Cloudflare que aparecem no console vêm de **dentro do iframe do Clever** (domínio deles) — não são do app.
 
 ## Verificação rápida
 

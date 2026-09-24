@@ -31,9 +31,13 @@ explícito com botão próprio.
    `allow="clipboard-write"`, `referrerpolicy="origin"`). Sem injeção de `widget.js`.
 3. Modo `api`: três cards `.provider-card` com rádio `name="apiProvider"`
    (`puter`/`gemini`/`groq`); corpo visível por vez (JS `bindApiProvider`).
-   - Puter: botão `#btnPuterLogin` → `puter.auth.signIn()` com timeout; `#puterStatus` mostra estado.
+   - Puter: **lazy load** via `loadPuter()` (não fica no `<head>`; injeta `js.puter.com/v2/`
+     ao abrir o modo API, trocar para o card ou reescrever com puter). `puter.quiet = true` no
+     boot. Botão `#btnPuterLogin` → `puter.auth.signIn()` com timeout; status em `#puterStatus`.
+     Usar `puter.auth.isSignedIn()` (o v2 não tem `isLoggedIn`).
    - Gemini: `#geminiKey` (localStorage `cleanmark_api_key_gemini`; migra de `cleanmark_api_key`).
    - Groq: `#groqKey` (localStorage `cleanmark_api_key_groq`).
+   - Limite de 30 a 1.500 palavras por vez (aviso `#wordLimitNote` + guard no `runRewrite`).
 4. Estado inicial = `clever` (handler chamado no load). Sem persistência do método (YAGNI).
 
 ## Arquivos afetados

@@ -267,6 +267,8 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none}
 .rewrite-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:32px}
 .rewrite-panel h2{font-size:1.1rem;margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .rewrite-method{max-width:360px;margin-bottom:16px}
+.word-limit-note{font-size:.85rem;color:var(--muted);background:rgba(234,179,8,.08);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:16px}
+.word-limit-note strong{color:var(--warn)}
 .clever-widget{margin-bottom:16px}
 .clever-note{
   background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.3);border-radius:8px;

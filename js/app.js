@@ -28,6 +28,7 @@ function getOpts(){
     highlightNewlines: $('optHighlightNewlines').checked,
     decodeMarkers: $('optDecodeMarkers').checked,
     invisible: $('optInvisible').checked,
+    conservativeClean: $('optConservative').checked,
     html: $('optHtml').checked,
     normalize: $('optNormalize').checked,
     whitespace: $('optWhitespace').checked,
@@ -37,6 +38,14 @@ function getOpts(){
 
 function countWords(s){
   return s.trim() ? s.trim().split(/\s+/).length : 0;
+}
+
+/**
+ * Texto suficiente para medir estilo: mínimo de 100 palavras E 500 caracteres.
+ * Abaixo disso, métricas de diversidade/burstiness não são confiáveis.
+ */
+function isTextSufficient(text){
+  return countWords(text) >= 100 && text.length >= 500;
 }
 
 function updateCounts(){
@@ -71,7 +80,7 @@ function updateBadges(){
   if (markerCount > 0){ mBadge.textContent = `🔴 ${markerCount.toLocaleString('pt-BR')} marcador${markerCount > 1 ? 'es' : ''}`; mBadge.classList.add('show'); }
   else mBadge.classList.remove('show');
   const aBadge = $('aiBadge');
-  if (aiDet.totalMatches > 0){ aBadge.textContent = `🟡 ${aiDet.totalMatches.toLocaleString('pt-BR')} sinal${aiDet.totalMatches > 1 ? 'is' : ''}`; aBadge.classList.add('show'); }
+  if (aiDet.totalMatches > 0){ aBadge.textContent = `🟡 ${aiDet.totalMatches.toLocaleString('pt-BR')} padrão${aiDet.totalMatches > 1 ? 'es' : ''} atípico${aiDet.totalMatches > 1 ? 's' : ''}`; aBadge.classList.add('show'); }
   else aBadge.classList.remove('show');
 }
 
@@ -114,10 +123,26 @@ function renderMetricCards(metrics){
 
 /**
  * Dashboard expandido: gauge/veredito + barras por categoria + cards de métricas.
+ * Textos curtos demais não mostram índice (heurística não confiável) — apenas aviso.
  * @param {{score:number, breakdown:object}} detection saída de detectAI()
+ * @param {string} sourceText texto que gerou a análise
  */
-function renderScoreDashboard(detection){
-  renderScore(detection.score);
+function renderScoreDashboard(detection, sourceText){
+  const insufficientEl = $('scoreInsufficient');
+  const insufficient = !isTextSufficient(sourceText || '');
+  if (insufficient){
+    $('gauge').style.display = 'none';
+    $('verdict').textContent = '⏸️ Texto insuficiente';
+    $('verdict').style.color = 'var(--muted)';
+    $('verdictDesc').textContent = 'O índice precisa de pelo menos 100 palavras e 500 caracteres para ser estatisticamente útil.';
+    insufficientEl.style.display = 'block';
+    insufficientEl.textContent = 'Índice indisponível — mínimo de 100 palavras e 500 caracteres.';
+  } else {
+    renderScore(detection.score);
+    $('verdictDesc').textContent = verdictFor(detection.score).desc;
+    $('gauge').style.display = 'block';
+    insufficientEl.style.display = 'none';
+  }
   const breakdown = detection.breakdown || { byCategory: {}, metrics: null };
   const barsEl = $('breakdownBars');
   const cats = Object.keys(breakdown.byCategory || {});
@@ -285,7 +310,7 @@ function runAnalyze(){
   const text = input.value;
   if (!text.trim()){ toast('Cole algum texto ou arraste um arquivo primeiro', 'error'); return; }
   const det = detectAI(text);
-  renderScoreDashboard(det);
+  renderScoreDashboard(det, text);
   renderEvidence(det.evidence);
   const { text: cleaned, stats } = cleanText(text, getOpts());
   output.value = cleaned;
@@ -317,7 +342,7 @@ function runAnalyze(){
 
   renderDiff(text, cleaned);
 
-  let msg = `Score IA: ${det.score}/100`;
+  let msg = `Índice de padrões: ${det.score}/100`;
   const bits = [];
   if (markerTotal > 0) bits.push(`${markerTotal} marcadores`);
   if (hiddenTotal > 0) bits.push(`${hiddenTotal} ocultos`);
@@ -358,8 +383,8 @@ function formatBytes(bytes){
 
 function showResultPanel({ originalFile, cleanBlob, cleanName, markers = 0, metaNote = '', previewUrl = null, fileIcon = '📄' }){
   $('resultPanel').style.display = 'block';
-  $('resultTitle').textContent = '✅ Arquivo processado com sucesso';
-  $('resultSub').textContent = 'Revise a análise acima e baixe quando quiser.';
+  $('resultTitle').textContent = '✅ Documento tratado';
+  $('resultSub').textContent = 'Baixe o documento limpo ou o texto limpo abaixo.';
   $('resultOrigName').textContent = originalFile.name;
   $('resultOrigSize').textContent = formatBytes(originalFile.size);
   $('resultCleanName').textContent = cleanName;
@@ -372,6 +397,18 @@ function showResultPanel({ originalFile, cleanBlob, cleanName, markers = 0, meta
   if (previewUrl) prev.innerHTML = `<img src="${previewUrl}" alt="Preview">`;
   else prev.innerHTML = `<div class="file-icon">${fileIcon}</div>`;
   $('btnDownloadLabel').textContent = 'Baixar ' + cleanName;
+  $('resultSectionDoc').style.display = 'block';
+  $('resultSectionText').style.display = output.value.trim() ? 'block' : 'none';
+  $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/** Painel apenas com a seção de texto limpo (ex.: depois de uma reescrita). */
+function showResultTextPanel(){
+  $('resultPanel').style.display = 'block';
+  $('resultTitle').textContent = '✅ Texto limpo gerado';
+  $('resultSub').textContent = 'Baixe o texto como .txt ou descarte.';
+  $('resultSectionDoc').style.display = 'none';
+  $('resultSectionText').style.display = 'block';
   $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -389,6 +426,19 @@ $('btnDownloadClean').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 3000);
   toast('Download: ' + lastCleanName, 'success');
 });
+
+function downloadTextFile(){
+  const v = output.value;
+  if (!v.trim()){ toast('Nada para baixar', 'error'); return; }
+  const blob = new Blob([v], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'texto_limpo.txt'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  toast('Download: texto_limpo.txt', 'success');
+}
+
+$('btnDownloadText').addEventListener('click', downloadTextFile);
 
 $('btnDiscardResult').addEventListener('click', hideResultPanel);
 $('btnDiscardResult2').addEventListener('click', hideResultPanel);
@@ -646,11 +696,12 @@ async function runRewrite(){
     updateCounts();
     const detNew = detectAI(rewritten);
     const detOld = detectAI(text);
-    renderScoreDashboard(detNew);
+    renderScoreDashboard(detNew, rewritten);
     renderEvidence(detNew.evidence);
     renderDiff(text, rewritten);
-    setRewriteStatus(`✅ Reescrito. Score: ${detOld.score} → ${detNew.score}`, 'success');
-    toast('Reescrito! Score: ' + detOld.score + ' → ' + detNew.score, 'success');
+    showResultTextPanel();
+    setRewriteStatus(`✅ Reescrito. Índice de padrões: ${detOld.score} → ${detNew.score}`, 'success');
+    toast('Reescrito! Índice: ' + detOld.score + ' → ' + detNew.score, 'success');
     fillCompareFromRewrite(text, rewritten);
   } catch(e){
     console.error(e);
@@ -848,6 +899,8 @@ $('btnClear').addEventListener('click', () => {
   $('verdictDesc').textContent = 'Cole um texto ou arraste um arquivo para analisar.';
   $('gaugeArc').style.strokeDashoffset = 427;
   $('gaugeArc').style.stroke = '#4ade80';
+  $('gauge').style.display = 'block';
+  $('scoreInsufficient').style.display = 'none';
   $('markerBadge').classList.remove('show');
   $('aiBadge').classList.remove('show');
   setRewriteStatus('');
@@ -1096,7 +1149,7 @@ function buildCompareTable(detA, detB){
   };
 
   const scoreDelta = detB.score - detA.score;
-  addRow('Score IA', detA.score, detB.score, scoreDelta,
+  addRow('Índice de padrões', detA.score, detB.score, scoreDelta,
     scoreDelta < 0 ? 'good' : scoreDelta > 0 ? 'bad' : 'neutral');
 
   if (mA && mB){
@@ -1127,31 +1180,54 @@ function runCompare(){
   const a = $('compareA').value;
   const b = $('compareB').value;
   if (!a.trim() || !b.trim()){ toast('Cole os dois textos para comparar', 'error'); return; }
-  const detA = detectAI(a);
-  const detB = detectAI(b);
+  const suA = isTextSufficient(a);
+  const suB = isTextSufficient(b);
 
-  const badge = (elId, det) => {
+  const setBadge = (elId, det, suff) => {
     const el = $(elId);
-    el.textContent = 'Score IA: ' + det.score;
+    if (!suff){
+      el.textContent = '⏸️ Texto insuficiente (mín. 100 palavras)';
+      el.className = 'compare-score';
+      el.removeAttribute('data-score');
+      el.removeAttribute('data-verdict');
+      return;
+    }
+    el.textContent = 'Índice de padrões: ' + det.score;
     el.className = 'compare-score';
     el.dataset.score = det.score;
     el.dataset.verdict = scoreVerdict(det.score);
   };
-  badge('compareScoreA', detA);
-  badge('compareScoreB', detB);
 
   const s = $('compareSummary');
+  $('compareMetricsTable').innerHTML = '';
+  $('compareDiff').innerHTML = '';
+  if (!suA || !suB){
+    const who = (!suA ? ' texto A' : '') + (!suB ? ' texto B' : '');
+    s.innerHTML = `⏸️ Comparação incompleta — ${who} está abaixo do mínimo (texto insuficiente: 100 palavras e 500 caracteres).`;
+    s.className = 'compare-summary neutral';
+    setBadge('compareScoreA', suA ? detectAI(a) : null, suA);
+    setBadge('compareScoreB', suB ? detectAI(b) : null, suB);
+    $('compareResults').style.display = 'block';
+    updateCompareBadge();
+    return;
+  }
+  const detA = detectAI(a);
+  const detB = detectAI(b);
+
+  setBadge('compareScoreA', detA, true);
+  setBadge('compareScoreB', detB, true);
+
   if (detB.score < detA.score){
     const pts = detA.score - detB.score;
     const pct = detA.score > 0 ? Math.round(pts / detA.score * 100) : 0;
-    s.innerHTML = `✅ Texto B é menos provável de ser IA: score caiu <strong>${pts} pontos</strong> (${pct}%).`;
+    s.innerHTML = `✅ O texto B tem o <strong>menor índice de padrões estilísticos</strong>: caiu <strong>${pts} pontos</strong> (${pct}%).`;
     s.className = 'compare-summary improved';
   } else if (detB.score > detA.score){
     const pts = detB.score - detA.score;
-    s.innerHTML = `⚠️ Texto B tem score MAIOR que A (a reescrita piorou em ${pts} pontos).`;
+    s.innerHTML = `⚠️ O texto B tem índice maior que o A: a reescrita aumentou a densidade de padrões detectados em ${pts} pontos.`;
     s.className = 'compare-summary worsened';
   } else {
-    s.innerHTML = `Scores idênticos (${detA.score}).`;
+    s.innerHTML = `Índices idênticos (${detA.score}).`;
     s.className = 'compare-summary neutral';
   }
 

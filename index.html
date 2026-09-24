@@ -32,24 +32,26 @@
 <main class="wrap">
 
   <div class="score-panel">
-    <div class="gauge">
-      <svg width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Score de escrita por IA">
+    <div class="gauge" id="gauge">
+      <svg width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Índice de padrões estilísticos">
         <circle cx="80" cy="80" r="68" fill="none" stroke="#2a2a3a" stroke-width="12"/>
         <circle id="gaugeArc" cx="80" cy="80" r="68" fill="none" stroke="#4ade80" stroke-width="12"
                 stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427"/>
       </svg>
       <div class="val">
         <span class="num" id="scoreNum">—</span>
-        <span class="lbl">Score IA</span>
+        <span class="lbl">Índice<span class="idx-hint" title="O índice é uma heurística: soma pesos de padrões estilísticos detectados (vocabulário corporativo, frases de ligação, estruturas repetitivas). Não é probabilidade de o texto ser de IA e não prova autoria.">ⓘ</span></span>
       </div>
     </div>
     <div class="score-details">
+      <div class="score-insufficient" id="scoreInsufficient" style="display:none"></div>
       <div class="verdict" id="verdict">Aguardando texto</div>
       <div class="verdict-desc" id="verdictDesc">Cole um texto ou arraste um arquivo para analisar.</div>
 
       <div class="score-breakdown" id="scoreBreakdown" style="display:none">
         <h4>Contribuição por categoria</h4>
         <div id="breakdownBars"></div>
+        <p class="breakdown-note">Barras proporcionais à contribuição de cada categoria. Não são probabilidades.</p>
       </div>
 
       <div class="metrics-grid" id="metricsGrid" style="display:none">
@@ -80,29 +82,40 @@
   <div class="result-panel" id="resultPanel" style="display:none">
     <div class="result-head">
       <div>
-        <div class="result-title" id="resultTitle">Arquivo processado</div>
+        <div class="result-title" id="resultTitle">Documento processado</div>
         <div class="result-sub" id="resultSub">Revise a análise acima e baixe quando quiser.</div>
       </div>
       <button class="result-close" id="btnDiscardResult" title="Descartar">✕</button>
     </div>
     <div class="result-body">
-      <div class="result-preview" id="resultPreview"></div>
-      <div class="result-info">
-        <div class="result-row"><span>Arquivo original</span><strong id="resultOrigName">—</strong></div>
-        <div class="result-row"><span>Tamanho original</span><strong id="resultOrigSize">—</strong></div>
-        <div class="result-row"><span>Arquivo limpo</span><strong id="resultCleanName">—</strong></div>
-        <div class="result-row"><span>Tamanho limpo</span><strong id="resultCleanSize">—</strong></div>
-        <div class="result-row" id="resultMarkerRow" style="display:none">
-          <span>Marcadores U+XXXX tratados</span><strong id="resultMarkers" class="warn">—</strong>
+      <div class="result-section" id="resultSectionDoc" style="display:none">
+        <h4>📄 Documento tratado</h4>
+        <p class="result-note">O conteúdo do documento é mantido como original — apenas metadados e marcadores detectados foram removidos do arquivo.</p>
+        <div class="result-preview" id="resultPreview"></div>
+        <div class="result-info">
+          <div class="result-row"><span>Arquivo original</span><strong id="resultOrigName">—</strong></div>
+          <div class="result-row"><span>Tamanho original</span><strong id="resultOrigSize">—</strong></div>
+          <div class="result-row"><span>Arquivo limpo</span><strong id="resultCleanName">—</strong></div>
+          <div class="result-row"><span>Tamanho limpo</span><strong id="resultCleanSize">—</strong></div>
+          <div class="result-row" id="resultMarkerRow" style="display:none">
+            <span>Marcadores U+XXXX tratados</span><strong id="resultMarkers" class="warn">—</strong>
+          </div>
+          <div class="result-row" id="resultMetaRow" style="display:none">
+            <span>Metadados removidos</span><strong id="resultMeta" class="success">—</strong>
+          </div>
         </div>
-        <div class="result-row" id="resultMetaRow" style="display:none">
-          <span>Metadados removidos</span><strong id="resultMeta" class="success">—</strong>
+        <div class="result-actions">
+          <button class="primary result-download" id="btnDownloadClean">⬇️ <span id="btnDownloadLabel">Baixar documento limpo</span></button>
         </div>
       </div>
-    </div>
-    <div class="result-actions">
-      <button class="primary result-download" id="btnDownloadClean">⬇️ <span id="btnDownloadLabel">Baixar arquivo limpo</span></button>
-      <button id="btnDiscardResult2">Descartar</button>
+      <div class="result-section" id="resultSectionText" style="display:none">
+        <h4>📝 Texto limpo</h4>
+        <p class="result-note">Texto extraído do documento com os ajustes de limpeza aplicados (invisíveis, HTML, tipografia, espaços).</p>
+        <div class="result-actions">
+          <button class="primary result-download" id="btnDownloadText">⬇️ Baixar texto limpo (.txt)</button>
+          <button id="btnDiscardResult2">Descartar</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -116,7 +129,7 @@
 
     <div class="options">
       <label class="opt-marker"><input type="checkbox" id="optHighlightMarkers" checked> 🔴 Marcadores U+XXXX</label>
-      <label class="opt-ai"><input type="checkbox" id="optHighlightAISignals" checked> 🟡 Sinais de IA</label>
+      <label class="opt-ai"><input type="checkbox" id="optHighlightAISignals" checked> 🟡 Padrões de IA</label>
       <label class="opt-typo"><input type="checkbox" id="optHighlightTypo" checked> 🟣 Tipografia atípica</label>
       <label class="opt-hyphen"><input type="checkbox" id="optHighlightHyphen" checked> 🟠 Hífens especiais</label>
       <label class="opt-space"><input type="checkbox" id="optHighlightSpace" checked> 🔵 Espaços especiais</label>
@@ -126,6 +139,7 @@
     <div class="options">
       <label><input type="checkbox" id="optDecodeMarkers" checked> Decodificar U+XXXX</label>
       <label><input type="checkbox" id="optInvisible" checked> Remover invisíveis</label>
+      <label><input type="checkbox" id="optConservative" checked> 🧼 Limpeza conservadora (preserva emojis e quebras \n)</label>
       <label><input type="checkbox" id="optHtml" checked> Remover HTML</label>
       <label><input type="checkbox" id="optNormalize" checked> Normalizar NFC</label>
       <label><input type="checkbox" id="optWhitespace"> Colapsar espaços</label>
@@ -167,7 +181,7 @@
       <div class="stat"><div class="num" id="sOrig">0</div><div class="lbl">Chars originais</div></div>
       <div class="stat"><div class="num neutral" id="sWhitespace">0</div><div class="lbl">Quebras/tabs</div></div>
       <div class="stat"><div class="num warn" id="sMarkers">0</div><div class="lbl">Marcadores U+</div></div>
-      <div class="stat"><div class="num warn" id="sAISignals">0</div><div class="lbl">Sinais de IA</div></div>
+      <div class="stat"><div class="num warn" id="sAISignals">0</div><div class="lbl">Padrões de IA</div></div>
       <div class="stat"><div class="num danger" id="sHidden">0</div><div class="lbl">Chars ocultos</div></div>
       <div class="stat"><div class="num typo" id="sTypo">0</div><div class="lbl">Tipografia</div></div>
       <div class="stat"><div class="num space" id="sSpace">0</div><div class="lbl">Espaços especiais</div></div>
@@ -189,7 +203,7 @@
     </div>
 
     <div class="evidence" id="evidencePanel" style="display:none">
-      <h3>🔍 Sinais de IA detectados</h3>
+      <h3>🔍 Padrões atípicos detectados</h3>
       <div id="evidenceList"></div>
     </div>
 
@@ -216,7 +230,7 @@
 
     <div class="compare-body" id="compareBody" role="region" aria-labelledby="compareToggle" hidden>
       <p class="compare-hint">
-        Cole dois textos para comparar scores de IA, métricas e diferenças.
+        Cole dois textos para comparar o índice de padrões estilísticos, métricas e diferenças.
         Ideal para validar o resultado de uma reescrita.
       </p>
 

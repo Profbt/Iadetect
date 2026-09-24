@@ -1,0 +1,7 @@
+A pesquisa analisou o perfil dos estudantes ingressantes no curso de licenciatura em história entre os anos de 2018 e 2022, a partir de dados administrativos fornecidos pela secretaria acadêmica. O recorte metodológico priorizou dois eixos principais: a origem escolar dos candidatos e o desempenho nas disciplinas obrigatórias do primeiro ano.
+
+Os resultados indicam que houve crescimento no número de alunos vindos de escolas públicas no período estudado, passando de 41% no primeiro ano para 58% no último. A variação acompanhou mudanças na política de reserva de vagas adotada pela instituição, o que sugere relação direta entre a normativa e o perfil de quem ingressou.
+
+Em turmas menores, os docentes relataram maior facilidade para acompanhar o ritmo de leitura dos estudantes. Já nas turmas com mais de quarenta alunos, as dificuldades foram apontadas principalmente na correção dos trabalhos escritos e na orientação individual das monografias de conclusão.
+
+A comparação entre turmas revelou ainda diferenças na taxa de evasão: os grupos com atividades práticas semanais mantiveram cerca de 82% dos matriculados até o fim do semestre, enquanto os demais ficaram próximos de 64%. A diferença permaneceu relevante mesmo depois de controlar variáveis como idade, nota de ingresso e turno.

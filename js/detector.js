@@ -1,7 +1,52 @@
 // ============================================================
 // 1. PADRÕES DE IA
 // ============================================================
-const AI_PATTERNS = [
+// Padrões curados para português brasileiro. Esta lista é heurística e
+// deve ser revisada periodicamente. Contribuições bem-vindas via PR.
+// Fonte de inspiração: Wikipedia:Signs of AI writing (PT e EN) e análise
+// empírica de textos acadêmicos gerados por LLM em PT-BR.
+const AI_PATTERNS_PT = [
+  // ---- Vocabulário inflado / corporativo ----
+  { id:'pt-vocab-robusto',    cat:'Vocabulário', weight:2,
+    re:/\b(robust[oa]s?|abrangente|holístic[oa]|sinérgic[oa])\b/gi,
+    note:'Adjetivos corporativos que LLMs favorecem em PT-BR.' },
+  { id:'pt-vocab-crucial',    cat:'Vocabulário', weight:2,
+    re:/\b(crucial|essencial|fundamental|imprescindível|indispensável)\b/gi,
+    note:'Ênfase excessiva por meio de adjetivos absolutos.' },
+  { id:'pt-vocab-vasto',      cat:'Vocabulário', weight:2,
+    re:/\b(vasto|amplo|complexo|multifacetado|dinâmico)\b/gi,
+    note:'Termos de amplitude vaga.' },
+
+  // ---- Frases de ligação vazias ----
+  { id:'pt-phrase-importante', cat:'Frases', weight:3,
+    re:/\b(vale|cabe|convém).{0,2}(destacar|ressaltar|salientar|mencionar)|\b(?:é|e) importante (destacar|ressaltar|salientar|mencionar)/gi,
+    note:'Muletas discursivas típicas de LLM em PT-BR.' },
+  { id:'pt-phrase-consonancia', cat:'Frases', weight:2,
+    re:/\b(em consonância com|em conformidade com|de forma integrada|de maneira articulada|sob (essa|esta) perspectiva)\b/gi,
+    note:'Conectores preposicionais que soam formais mas não acrescentam.' },
+  { id:'pt-phrase-sentido', cat:'Frases', weight:2,
+    re:/\b(neste sentido|nesse sentido|dessa forma|desse modo|em suma|em síntese|por conseguinte)\b/gi,
+    note:'Conectores de coesão usados em excesso.' },
+  { id:'pt-phrase-conclusao', cat:'Frases', weight:2,
+    re:/\b(em conclusão|conclui-se que|portanto, pode-se afirmar|dessa maneira, fica evidente)\b/gi,
+    note:'Conclusões formuladas em tom assertivo sem evidência.' },
+  { id:'pt-phrase-contexto', cat:'Frases', weight:2,
+    re:/\b(no (atual|presente) contexto|no cenário (atual|contemporâneo)|diante do exposto)\b/gi,
+    note:'Aberturas genéricas que situam sem informar.' },
+
+  // ---- Estrutura ----
+  { id:'pt-struct-triade', cat:'Estrutura', weight:2,
+    re:/\b\w+,\s+\w+\s+e\s+\w+\b/g,
+    note:'Listas de três itens coordenados — padrão de IA.' },
+  { id:'pt-struct-negrito', cat:'Estrutura', weight:1,
+    re:/\*\*[^*]+\*\*/g,
+    note:'Negrito excessivo em texto corrido (markdown exportado).' },
+];
+
+// Padrões em inglês como FALLBACK (úteis para textos técnicos com
+// anglicismos). Entram com peso reduzido (metade) por serem menos
+// relevantes para o público PT-BR.
+const AI_PATTERNS_EN = [
   { id:'vocab-pivotal', cat:'Vocabulário', weight:2, re:/\b(pivotal|crucial|vital|paramount|indispensable)\b/gi, note:'Palavras de ênfase excessiva.' },
   { id:'vocab-delve', cat:'Vocabulário', weight:3, re:/\b(delve|delves|delving)\b/gi, note:'"Delve" associado a LLM.' },
   { id:'vocab-tapestry', cat:'Vocabulário', weight:3, re:/\b(tapestry|testament to|focal point|cornerstone)\b/gi, note:'Metáforas grandiloquentes.' },
@@ -21,6 +66,13 @@ const AI_PATTERNS = [
   { id:'struct-emoji', cat:'Estrutura', weight:2, re:/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, note:'Emojis em texto corrido.' },
 ];
 
+// Lista efetiva usada por detectAI()/collectRanges(): PT com peso cheio,
+// EN com peso reduzido à metade e id com prefixo `en-` (evita colisão).
+const AI_PATTERNS = [
+  ...AI_PATTERNS_PT,
+  ...AI_PATTERNS_EN.map(p => ({ ...p, id: 'en-' + p.id, weight: +(p.weight * 0.5).toFixed(2) })),
+];
+
 // ============================================================
 // 1b. MÉTRICAS ESTILÍSTICAS
 // ============================================================
@@ -35,6 +87,41 @@ const METRIC_WEIGHTS = {
 const PATTERN_WEIGHT = 100 - (METRIC_WEIGHTS.burstiness + METRIC_WEIGHTS.lexicalDiversity +
                               METRIC_WEIGHTS.paragraphUniformity + METRIC_WEIGHTS.avgSentenceLength);
 
+// ============================================================
+// 1c. TOKENIZAÇÃO UNICODE-COMPATÍVEL
+// ============================================================
+/**
+ * Tokeniza palavras respeitando Unicode (letras acentuadas, CJK, etc.).
+ * Usa Intl.Segmenter quando disponível; fallback para regex Unicode.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function tokenizeWords(text){
+  if (typeof Intl !== 'undefined' && Intl.Segmenter){
+    const seg = new Intl.Segmenter('pt-BR', { granularity: 'word' });
+    const out = [];
+    for (const s of seg.segment(text)){
+      if (s.isWordLike) out.push(s.segment);
+    }
+    return out;
+  }
+  // Fallback: \p{L} = qualquer letra Unicode; \p{M} = marcas (acentos combinantes)
+  return text.match(/\p{L}[\p{L}\p{M}'-]*/gu) || [];
+}
+
+/**
+ * Divide o texto em frases respeitando pontuação Unicode.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function splitSentences(text){
+  if (typeof Intl !== 'undefined' && Intl.Segmenter){
+    const seg = new Intl.Segmenter('pt-BR', { granularity: 'sentence' });
+    return [...seg.segment(text)].map(s => s.segment).filter(s => s.trim());
+  }
+  return text.split(/(?<=[.!?])\s+|\n{2,}/).filter(s => s.trim());
+}
+
 /**
  * Variação no comprimento de frases consecutivas (coeficiente de variação, 0-1).
  * 1 = altíssima variação = estilo humano; 0 = frases todas iguais = padrão de IA.
@@ -42,8 +129,8 @@ const PATTERN_WEIGHT = 100 - (METRIC_WEIGHTS.burstiness + METRIC_WEIGHTS.lexical
  * @returns {{value:number, verdict:string}} value 0-1
  */
 function computeBurstiness(text){
-  const sentences = text.split(/[.!?]+|\n{2,}/).map(s => s.trim()).filter(s => s.length > 0);
-  const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  const sentences = splitSentences(text);
+  const lengths = sentences.map(s => tokenizeWords(s).length);
   if (lengths.length < 2) return { value: 0.5, verdict: 'média' };
   const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
   const sd = Math.sqrt(lengths.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lengths.length);
@@ -53,18 +140,18 @@ function computeBurstiness(text){
 }
 
 /**
- * Razão tipo-token (palavras únicas / total), com correção para textos curtos.
- * Alta diversidade = mais humano; baixa = vocabulário repetitivo de LLM.
+ * Razão tipo-token (palavras únicas / total). Alta diversidade = mais humano;
+ * baixa = vocabulário repetitivo. Sem correção para textos curtos: um texto
+ * pequeno é naturalmente diverso (cada palavra aparece uma vez).
  * @param {string} text
  * @returns {{value:number, verdict:string}} value 0-1
  */
 function computeLexicalDiversity(text){
-  const tokens = text.toLowerCase().match(/\b\w+\b/g) || [];
+  const tokens = tokenizeWords(text.toLowerCase());
   const total = tokens.length;
   if (total === 0) return { value: 0.5, verdict: 'média' };
   const unique = new Set(tokens).size;
-  let ttr = unique / total;
-  if (total < 200) ttr = Math.min(1, ttr * (1 + (200 - total) / 400));
+  const ttr = unique / total;
   const verdict = ttr >= 0.6 ? 'alta' : ttr >= 0.45 ? 'média' : 'baixa';
   return { value: +ttr.toFixed(2), verdict };
 }
@@ -75,8 +162,8 @@ function computeLexicalDiversity(text){
  * @returns {{value:number, verdict:string}} verdict: curta/média/longa/muito longa
  */
 function computeAvgSentenceLength(text){
-  const sentences = text.split(/[.!?]+|\n{2,}/).map(s => s.trim()).filter(s => s.length > 0);
-  const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  const sentences = splitSentences(text);
+  const lengths = sentences.map(s => tokenizeWords(s).length);
   const avg = lengths.length ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0;
   const value = +avg.toFixed(1);
   const verdict = value < 12 ? 'curta' : value <= 20 ? 'média' : value <= 30 ? 'longa' : 'muito longa';
@@ -91,7 +178,7 @@ function computeAvgSentenceLength(text){
  */
 function computeParagraphUniformity(text){
   const paragraphs = text.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 0);
-  const lengths = paragraphs.map(p => p.split(/\s+/).filter(Boolean).length);
+  const lengths = paragraphs.map(p => tokenizeWords(p).length);
   if (lengths.length < 2) return { value: 0.5, verdict: 'média' };
   const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
   const sd = Math.sqrt(lengths.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lengths.length);
@@ -163,14 +250,21 @@ function detectAI(text){
     rawTotal: +rawTotal.toFixed(1)
   };
 
-  return { score, evidence, time: Math.round(performance.now() - t0), totalMatches, breakdown };
+  return {
+    score,
+    stylisticIndex: score,
+    evidence,
+    time: Math.round(performance.now() - t0),
+    totalMatches,
+    breakdown
+  };
 }
 
 function verdictFor(score){
-  if (score >= 70) return { label:'🚨 Forte sinal de IA', desc:'Muitos padrões detectados.', color:'#f87171' };
-  if (score >= 40) return { label:'⚠️ Possível escrita por IA', desc:'Alguns padrões suspeitos.', color:'#fbbf24' };
-  if (score >= 15) return { label:'🟡 Leve sinal de IA', desc:'Poucos padrões.', color:'#fbbf24' };
-  return { label:'✅ Sem sinais relevantes', desc:'Nenhum padrão típico encontrado.', color:'#4ade80' };
+  if (score >= 70) return { label:'🚨 Alta densidade de padrões atípicos', desc:'Muitos padrões detectados.', color:'#f87171' };
+  if (score >= 40) return { label:'⚠️ Padrões atípicos moderados', desc:'Alguns padrões suspeitos.', color:'#fbbf24' };
+  if (score >= 15) return { label:'🟡 Leve presença de padrões', desc:'Poucos padrões.', color:'#fbbf24' };
+  return { label:'✅ Nenhum padrão atípico detectado', desc:'Nenhum padrão típico encontrado.', color:'#4ade80' };
 }
 
 // ============================================================
@@ -354,7 +448,7 @@ const CATEGORIES = {
 // ============================================================
 // 4. REGEX
 // ============================================================
-const INVISIBLE_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2028\u2029\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF9-\uFFFB]|\u{1D173}-\u{1D17A}|\u{E0000}-\u{E007F}|\u{E0100}-\u{E01EF}/gu;
+const INVISIBLE_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2028\u2029\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF9-\uFFFB\u{1D173}-\u{1D17A}\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/gu;
 
 const TYPO_RE   = /[\u2014\u2013\u2E3A\u2E3B\u2018\u2019\u201A\u201C\u201D\u201E\u2026\u2022\u00B7\u2032\u2033\u2034\u00AB\u00BB\u2039\u203A]/g;
 const HYPHEN_RE = /[\u2010\u2011\u2012\u2015\u2212\uFE58\uFE63\uFF0D]/g;

@@ -206,46 +206,54 @@
     </div>
   </div>
 
-  <div class="compare-panel" id="comparePanel">
-    <h2>⚖️ Análise Comparativa</h2>
-    <p class="compare-hint">
-      Cole dois textos para comparar scores de IA, métricas e diferenças.
-      Ideal para validar o resultado de uma reescrita.
-    </p>
+  <section class="compare-panel" id="comparePanel">
+    <button class="compare-toggle" id="compareToggle" aria-expanded="false" aria-controls="compareBody">
+      <span class="compare-toggle-icon" id="compareToggleIcon">▸</span>
+      <span class="compare-toggle-title">⚖️ Análise Comparativa</span>
+      <span class="compare-toggle-badge" id="compareToggleBadge"></span>
+      <span class="compare-toggle-hint" id="compareToggleHint">Clique para expandir</span>
+    </button>
 
-    <div class="compare-grid">
-      <div class="compare-col">
-        <div class="compare-head">
-          <label for="compareA">Texto A (original)</label>
-          <button class="btn-mini" id="btnSendA" aria-label="Enviar texto da entrada para A">⬅️ Enviar entrada</button>
+    <div class="compare-body" id="compareBody" role="region" aria-labelledby="compareToggle" hidden>
+      <p class="compare-hint">
+        Cole dois textos para comparar scores de IA, métricas e diferenças.
+        Ideal para validar o resultado de uma reescrita.
+      </p>
+
+      <div class="compare-grid">
+        <div class="compare-col">
+          <div class="compare-head">
+            <label for="compareA">Texto A (original)</label>
+            <button class="btn-mini" id="btnSendA" title="Copia o texto da entrada para o campo A" aria-label="Enviar texto da entrada para A">⬅️ Enviar entrada</button>
+          </div>
+          <textarea id="compareA" placeholder="Cole o texto A aqui..." spellcheck="false"></textarea>
+          <div class="compare-score" id="compareScoreA">—</div>
         </div>
-        <textarea id="compareA" placeholder="Cole o texto A aqui..." spellcheck="false"></textarea>
-        <div class="compare-score" id="compareScoreA">—</div>
+
+        <div class="compare-col">
+          <div class="compare-head">
+            <label for="compareB">Texto B (reescrito)</label>
+            <button class="btn-mini" id="btnSendB" title="Copia a saída limpa para o campo B" aria-label="Enviar saída limpa para B">⬅️ Enviar saída</button>
+          </div>
+          <textarea id="compareB" placeholder="Cole o texto B aqui..." spellcheck="false"></textarea>
+          <div class="compare-score" id="compareScoreB">—</div>
+        </div>
       </div>
 
-      <div class="compare-col">
-        <div class="compare-head">
-          <label for="compareB">Texto B (reescrito)</label>
-          <button class="btn-mini" id="btnSendB" aria-label="Enviar saída limpa para B">⬅️ Enviar saída</button>
-        </div>
-        <textarea id="compareB" placeholder="Cole o texto B aqui..." spellcheck="false"></textarea>
-        <div class="compare-score" id="compareScoreB">—</div>
+      <div class="compare-actions">
+        <button class="primary" id="btnCompare">🔍 Comparar</button>
+        <button id="btnCompareClear">🗑️ Limpar</button>
+        <button id="btnCompareSwap">🔄 Trocar A ↔ B</button>
+      </div>
+
+      <div class="compare-results" id="compareResults" style="display:none">
+        <h3>📊 Resultado da comparação</h3>
+        <div class="compare-summary" id="compareSummary"></div>
+        <div class="compare-metrics-table" id="compareMetricsTable"></div>
+        <div class="compare-diff" id="compareDiff"></div>
       </div>
     </div>
-
-    <div class="compare-actions">
-      <button class="primary" id="btnCompare">🔍 Comparar</button>
-      <button id="btnCompareClear">🗑️ Limpar</button>
-      <button id="btnCompareSwap">🔄 Trocar A ↔ B</button>
-    </div>
-
-    <div class="compare-results" id="compareResults" style="display:none">
-      <h3>📊 Resultado da comparação</h3>
-      <div class="compare-summary" id="compareSummary"></div>
-      <div class="compare-metrics-table" id="compareMetricsTable"></div>
-      <div class="compare-diff" id="compareDiff"></div>
-    </div>
-  </div>
+  </section>
 
   <div class="rewrite-panel">
     <h2>✍️ Reescrever com IA</h2>

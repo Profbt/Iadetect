@@ -1006,11 +1006,79 @@ $('btnRewriteToInput').addEventListener('click', () => {
 // ============================================================
 // 17. ANÁLISE COMPARATIVA (A × B)
 // ============================================================
-function scoreClass(score){
-  const v = verdictFor(score);
-  if (v.color === '#f87171') return 'score-bad';
-  if (v.color === '#4ade80') return 'score-good';
-  return 'score-warn';
+const COMPARE_OPEN_KEY = 'cleanmark_compare_open';
+
+/**
+ * Abre/fecha o painel comparativo e persiste o estado em localStorage.
+ * @param {boolean} open estado desejado
+ * @param {{scroll?: boolean}} [opts] rolar suavemente até o painel ao abrir
+ */
+function setCompareOpen(open, { scroll = false } = {}){
+  const panel = $('comparePanel');
+  const body = $('compareBody');
+  const toggle = $('compareToggle');
+  const hint = $('compareToggleHint');
+
+  if (!panel || !body) return;
+
+  panel.classList.toggle('open', open);
+  body.hidden = !open;
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  hint.textContent = open ? 'Clique para recolher' : 'Clique para expandir';
+
+  localStorage.setItem(COMPARE_OPEN_KEY, open ? '1' : '0');
+
+  if (open && scroll) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/** Faixa do score usada pelo CSS ([data-verdict]): clean <15, low 15-39, medium 40-69, high >=70. */
+function scoreVerdict(score){
+  if (score >= 70) return 'high';
+  if (score >= 40) return 'medium';
+  if (score >= 15) return 'low';
+  return 'clean';
+}
+
+/**
+ * Badge do toggle: mini-resumo "A: x → B: y (±z%)" quando há resultado.
+ * Verde se B melhorou, vermelho se piorou; some quando não há comparação.
+ */
+function updateCompareBadge(){
+  const badge = $('compareToggleBadge');
+  const a = $('compareA').value.trim();
+  const b = $('compareB').value.trim();
+
+  if (!a || !b){ badge.classList.remove('show', 'good', 'bad'); return; }
+
+  const scoreAEl = $('compareScoreA');
+  const scoreBEl = $('compareScoreB');
+  if (!scoreAEl || !scoreBEl || !scoreAEl.dataset.score || !scoreBEl.dataset.score){
+    badge.classList.remove('show', 'good', 'bad');
+    return;
+  }
+
+  const sA = parseInt(scoreAEl.dataset.score, 10);
+  const sB = parseInt(scoreBEl.dataset.score, 10);
+  const delta = sB - sA;
+  const deltaPct = sA > 0 ? Math.round((delta / sA) * 100) : 0;
+
+  badge.textContent = `A: ${sA} → B: ${sB} (${delta > 0 ? '+' : ''}${deltaPct}%)`;
+  badge.classList.add('show');
+  badge.classList.toggle('good', delta < 0);
+  badge.classList.toggle('bad', delta > 0);
+}
+
+/** Zera os badges de score A/B e o badge do toggle (mantém o painel aberto). */
+function resetCompareScores(){
+  $('compareScoreA').textContent = '—';
+  $('compareScoreB').textContent = '—';
+  ['A', 'B'].forEach(k => {
+    const el = $('compareScore' + k);
+    el.className = 'compare-score';
+    el.removeAttribute('data-score');
+    el.removeAttribute('data-verdict');
+  });
+  $('compareToggleBadge').classList.remove('show', 'good', 'bad');
 }
 
 function compareValue(m, key){
@@ -1024,12 +1092,12 @@ function buildCompareTable(detA, detB){
   const rows = [];
   const addRow = (label, va, vb, delta, cls) => {
     const d = delta === null ? '—' : (delta >= 0 ? '+' + delta.toFixed(2) : delta.toFixed(2));
-    rows.push(`<tr><td>${label}</td><td>${va}</td><td>${vb}</td><td class="cmp-delta ${cls}">${d}</td></tr>`);
+    rows.push(`<tr><td>${label}</td><td>${va}</td><td>${vb}</td><td class="cmp-delta delta ${cls}">${d}</td></tr>`);
   };
 
   const scoreDelta = detB.score - detA.score;
   addRow('Score IA', detA.score, detB.score, scoreDelta,
-    scoreDelta < 0 ? 'delta-good' : scoreDelta > 0 ? 'delta-bad' : 'delta-muted');
+    scoreDelta < 0 ? 'good' : scoreDelta > 0 ? 'bad' : 'neutral');
 
   if (mA && mB){
     const dims = ['burstiness', 'lexicalDiversity', 'paragraphUniformity'];
@@ -1037,15 +1105,15 @@ function buildCompareTable(detA, detB){
     for (const key of dims){
       const delta = (typeof mA[key].value === 'number' && typeof mB[key].value === 'number')
         ? +(mB[key].value - mA[key].value).toFixed(2) : null;
-      let cls = 'delta-muted';
+      let cls = 'neutral';
       if (delta !== null){
-        if (key === 'burstiness' || key === 'lexicalDiversity') cls = delta > 0 ? 'delta-good' : delta < 0 ? 'delta-bad' : 'delta-muted';
-        else if (key === 'paragraphUniformity') cls = delta < 0 ? 'delta-good' : delta > 0 ? 'delta-bad' : 'delta-muted';
+        if (key === 'burstiness' || key === 'lexicalDiversity') cls = delta > 0 ? 'good' : delta < 0 ? 'bad' : 'neutral';
+        else if (key === 'paragraphUniformity') cls = delta < 0 ? 'good' : delta > 0 ? 'bad' : 'neutral';
       }
       addRow(mA[key].label, compareValue(mA, key), compareValue(mB, key), delta, cls);
     }
   } else {
-    addRow('Métricas', '—', '—', null, 'delta-muted');
+    addRow('Métricas', '—', '—', null, 'neutral');
   }
 
   return `<table>
@@ -1055,6 +1123,7 @@ function buildCompareTable(detA, detB){
 }
 
 function runCompare(){
+  setCompareOpen(true);
   const a = $('compareA').value;
   const b = $('compareB').value;
   if (!a.trim() || !b.trim()){ toast('Cole os dois textos para comparar', 'error'); return; }
@@ -1064,7 +1133,9 @@ function runCompare(){
   const badge = (elId, det) => {
     const el = $(elId);
     el.textContent = 'Score IA: ' + det.score;
-    el.className = 'compare-score ' + scoreClass(det.score);
+    el.className = 'compare-score';
+    el.dataset.score = det.score;
+    el.dataset.verdict = scoreVerdict(det.score);
   };
   badge('compareScoreA', detA);
   badge('compareScoreB', detB);
@@ -1073,36 +1144,46 @@ function runCompare(){
   if (detB.score < detA.score){
     const pts = detA.score - detB.score;
     const pct = detA.score > 0 ? Math.round(pts / detA.score * 100) : 0;
-    s.innerHTML = `<div class="compare-summary-ok">✅ Texto B é menos provável de ser IA: score caiu <strong>${pts} pontos</strong> (${pct}%). A reescrita ajudou.</div>`;
+    s.innerHTML = `✅ Texto B é menos provável de ser IA: score caiu <strong>${pts} pontos</strong> (${pct}%).`;
+    s.className = 'compare-summary improved';
   } else if (detB.score > detA.score){
     const pts = detB.score - detA.score;
-    s.innerHTML = `<div class="compare-summary-bad">⚠️ Texto B tem score MAIOR que A (a reescrita piorou em ${pts} pontos).</div>`;
+    s.innerHTML = `⚠️ Texto B tem score MAIOR que A (a reescrita piorou em ${pts} pontos).`;
+    s.className = 'compare-summary worsened';
   } else {
-    s.innerHTML = `<div class="compare-summary-ok">Scores idênticos (${detA.score}).</div>`;
+    s.innerHTML = `Scores idênticos (${detA.score}).`;
+    s.className = 'compare-summary neutral';
   }
 
   $('compareMetricsTable').innerHTML = buildCompareTable(detA, detB);
   $('compareDiff').innerHTML = buildDiffHTML(a, b);
   $('compareResults').style.display = 'block';
+  updateCompareBadge();
 }
 
-/** Fluxo integrado: após reescrever, preenche A (original) × B (reescrita) e compara. */
+/** Fluxo integrado: após reescrever, preenche A (original) × B (reescrita), compara e revela o painel. */
 function fillCompareFromRewrite(original, rewritten){
   $('compareA').value = original;
   $('compareB').value = rewritten;
+  setCompareOpen(true);
   runCompare();
-  const panel = $('comparePanel');
-  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setCompareOpen(true, { scroll: true });
 }
+
+// Estado inicial: colapsado por padrão, respeitando a preferência salva
+(function initCompareState(){
+  setCompareOpen(localStorage.getItem(COMPARE_OPEN_KEY) === '1');
+})();
+
+$('compareToggle').addEventListener('click', () => {
+  setCompareOpen(!$('comparePanel').classList.contains('open'));
+});
 
 $('btnCompare').addEventListener('click', runCompare);
 $('btnCompareClear').addEventListener('click', () => {
   $('compareA').value = '';
   $('compareB').value = '';
-  $('compareScoreA').textContent = '—';
-  $('compareScoreB').textContent = '—';
-  $('compareScoreA').className = 'compare-score';
-  $('compareScoreB').className = 'compare-score';
+  resetCompareScores();
   $('compareResults').style.display = 'none';
 });
 $('btnCompareSwap').addEventListener('click', () => {
@@ -1110,9 +1191,30 @@ $('btnCompareSwap').addEventListener('click', () => {
   const tmp = a.value;
   a.value = b.value;
   b.value = tmp;
+  if (a.value.trim() && b.value.trim()) runCompare();
+  else resetCompareScores();
 });
-$('btnSendA').addEventListener('click', () => { $('compareA').value = input.value; });
-$('btnSendB').addEventListener('click', () => { $('compareB').value = output.value; });
+$('btnSendA').addEventListener('click', () => {
+  $('compareA').value = input.value;
+  setCompareOpen(true, { scroll: true });
+});
+$('btnSendB').addEventListener('click', () => {
+  $('compareB').value = output.value;
+  setCompareOpen(true, { scroll: true });
+});
+
+// Auto-expandir ao colar texto relevante em um dos campos
+['compareA', 'compareB'].forEach(id => {
+  $(id).addEventListener('paste', () => {
+    setTimeout(() => {
+      if (!$('comparePanel').classList.contains('open')){
+        const a = $('compareA').value.trim();
+        const b = $('compareB').value.trim();
+        if (a.length > 100 || b.length > 100) setCompareOpen(true);
+      }
+    }, 0);
+  });
+});
 
 updateCounts();
 syncBackdrop();

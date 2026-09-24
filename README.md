@@ -5,7 +5,7 @@ Detector de escrita por IA e limpador de metadados. **100% client-side** — nen
 ## Funcionalidades
 
 - **Score de IA (0–100)**: analisa padrões típicos de LLM (vocabulário, frases, estrutura) e classifica o texto. Dashboard expandido com **barras de contribuição por categoria** e **métricas estilísticas** (burstiness, diversidade lexical, comprimento médio de frase, uniformidade de parágrafos) — computadas para textos até ~200 KB.
-- **Análise comparativa A × B**: cole dois textos (ou envie entrada/reescrita), compare scores, métricas com delta (Δ) e as diferenças verbatim; após reescrever, o painel é preenchido e rolado automaticamente com original × resultado.
+- **Análise comparativa A × B**: painel **colapsável** (estado lembrado; abre sozinho ao enviar entrada/saída, colar texto ou ao reescrever). Compare scores, métricas com delta (Δ) e diferenças verbatim; badge no cabeçalho resume `A: x → B: y (±z%)` após comparar.
 - **Auditoria de caracteres suspeitos**: invisíveis (largura zero), espaços especiais, tipografia atípica, hífens especiais, controles direcionais, Unicode Tags (`U+E0000–U+E007F`), chars matemáticos e preenchimento.
 - **Marcadores U+XXXX**: detecta e decodifica marcadores vindos de texto com HTML/notações de controle.
 - **Limpeza**: remove invisíveis, HTML, normaliza NFC, colapsa espaços, normaliza tipografia opcionalmente.

@@ -35,9 +35,13 @@ function getOpts(){
   };
 }
 
+function countWords(s){
+  return s.trim() ? s.trim().split(/\s+/).length : 0;
+}
+
 function updateCounts(){
-  $('inCount').textContent = input.value.length.toLocaleString('pt-BR') + ' caracteres';
-  $('outCount').textContent = output.value.length.toLocaleString('pt-BR') + ' caracteres';
+  $('inCount').textContent = input.value.length.toLocaleString('pt-BR') + ' caracteres · ' + countWords(input.value).toLocaleString('pt-BR') + ' palavras';
+  $('outCount').textContent = output.value.length.toLocaleString('pt-BR') + ' caracteres · ' + countWords(output.value).toLocaleString('pt-BR') + ' palavras';
 }
 
 function syncBackdrop(){
@@ -707,6 +711,29 @@ $('btnCopy').addEventListener('click', async () => {
   if (!output.value){ toast('Nada para copiar', 'error'); return; }
   try { await navigator.clipboard.writeText(output.value); toast('Copiado! 📋', 'success'); }
   catch(e){ output.select(); document.execCommand('copy'); toast('Copiado! 📋', 'success'); }
+});
+
+function firstNWords(s, n){
+  const words = (s || '').trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, n).join(' ');
+}
+
+$('btnCopy1500').addEventListener('click', async () => {
+  const src = input.value.trim() ? input.value : output.value;
+  const words = firstNWords(src, 1500);
+  if (!words){ toast('Cole algum texto primeiro', 'error'); return; }
+  const copied = countWords(words);
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = words;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('Copiadas ' + copied.toLocaleString('pt-BR') + ' palavras — Ctrl+V no Reescrever', 'success');
+  };
+  try { await navigator.clipboard.writeText(words); toast('Copiadas ' + copied.toLocaleString('pt-BR') + ' palavras — Ctrl+V no Reescrever', 'success'); }
+  catch(e){ fallback(); }
 });
 
 $('btnCopySanitized').addEventListener('click', async () => {

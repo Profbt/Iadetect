@@ -1,6 +1,101 @@
 # CleanMark Pro
 
-Detector de escrita por IA e limpador de metadados. **100% client-side** — nenhum texto sai do navegador.
+**AI-writing pattern analysis and metadata cleaning — privacy-first and fully client-side.**
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-btdetectai.vercel.app-22c55e?style=for-the-badge&logo=vercel&logoColor=white)](https://btdetectai.vercel.app/)
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](#technology)
+[![Privacy](https://img.shields.io/badge/Privacy-Client--side-2563eb?style=flat-square&logo=shield&logoColor=white)](#privacy-and-responsible-use)
+
+**English** | [Português](#português)
+
+## Overview
+
+CleanMark Pro is a browser-based toolkit for examining stylistic patterns often associated with AI-generated writing, auditing suspicious Unicode characters, and removing metadata from text, documents, and images.
+
+The application runs **entirely in the browser**: submitted text and processed files are not uploaded to a project server. Its analysis is designed to support careful review, not to make automated accusations or determine authorship.
+
+## Highlights
+
+- **Stylistic pattern index (0–100):** combines curated Brazilian Portuguese patterns, lower-weight English fallbacks, burstiness, lexical diversity, average sentence length, and paragraph uniformity.
+- **Side-by-side comparison:** compares input and output, displays metric deltas, highlights verbatim differences, and handles short samples responsibly.
+- **Suspicious-character audit:** identifies zero-width characters, unusual spaces, directional controls, Unicode Tags, mathematical characters, and other hidden markers.
+- **Conservative cleaning:** preserves emojis and document structure while removing selected invisible characters, HTML artifacts, and suspicious markers.
+- **Document and image processing:** accepts TXT, Markdown, CSV, JSON, HTML, DOCX, XLSX, PPTX, PDF, PNG, JPEG, WebP, GIF, and BMP files.
+- **Metadata removal:** cleans author, generator, date, EXIF, and GPS metadata where supported.
+- **Visual diff and editor highlighting:** shows what changed between the original and cleaned versions.
+- **Optional AI-assisted rewriting:** supports an embedded humanization widget and optional Puter.js, Gemini, or Groq integrations.
+- **Automated tests:** includes Node-based fixtures and headless browser coverage for analysis, cleaning, parsing, and interface flows.
+
+## Privacy and responsible use
+
+- Text analysis and cleaning run locally in the user's browser.
+- API keys used by optional integrations are stored only in browser `localStorage`.
+- The project does not present its score as a probability of AI authorship.
+- Samples below 100 words or 500 characters do not receive an index.
+- Results should be interpreted as review signals, never as conclusive evidence of misconduct.
+- Cleaned documents preserve their original content; rewritten or adjusted text is downloaded separately as a TXT file.
+
+## Technology
+
+The project uses modular vanilla JavaScript and browser APIs, with CDN-loaded libraries where appropriate:
+
+| Technology | Purpose |
+| --- | --- |
+| JavaScript, HTML, CSS | Application interface and client-side processing |
+| `Intl.Segmenter` | Language-aware tokenization |
+| JSZip | Office document extraction and cleaning |
+| pdf-lib | PDF metadata cleaning |
+| PDF.js | Lazy-loaded PDF text extraction |
+| jsdiff | Original-to-cleaned text comparison |
+| DOMParser | Safe HTML text extraction |
+| Puter.js, Gemini, Groq | Optional AI rewriting providers |
+
+## Run locally
+
+The project is static and can be opened directly through `index.html`. For a local development server:
+
+```bash
+npx serve .
+```
+
+## Project structure
+
+```text
+Escrita IA/
+├── index.html
+├── css/
+│   └── style.css
+├── js/
+│   ├── detector.js
+│   ├── cleaner.js
+│   └── app.js
+├── test/
+│   ├── fixtures/
+│   ├── run-tests.js
+│   └── browser-test.js
+├── README.md
+└── AGENTS.md
+```
+
+The browser scripts share a global scope and must be loaded in this order: `detector.js` → `cleaner.js` → `app.js`.
+
+## Live application
+
+Try the public version at **[btdetectai.vercel.app](https://btdetectai.vercel.app/)**.
+
+---
+
+<a id="português"></a>
+
+# CleanMark Pro — documentação em português
+
+Detector de padrões de escrita associados à IA e limpador de metadados. **100% client-side** — nenhum texto sai do navegador.
+
+[English](#cleanmark-pro) | **Português**
+
+🌐 **Aplicação:** [btdetectai.vercel.app](https://btdetectai.vercel.app/)
+
+> O índice é heurístico: não representa probabilidade de autoria por IA e não deve ser usado isoladamente como prova.
 
 ## Funcionalidades
 

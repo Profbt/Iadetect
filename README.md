@@ -6,6 +6,8 @@
 [![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](#technology)
 [![Privacy](https://img.shields.io/badge/Privacy-Client--side-2563eb?style=flat-square&logo=shield&logoColor=white)](#privacy-and-responsible-use)
 
+![CleanMark Pro application preview](docs/preview.png)
+
 **English** | [Português](#português)
 
 ## Overview
